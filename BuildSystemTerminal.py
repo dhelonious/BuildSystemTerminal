@@ -51,8 +51,12 @@ class AsyncProcess(object):
 
         self.listener = listener
         self.killed = False
-
         self.start_time = time.time()
+        self.logfile = LOGFILE
+
+        # Remove log file if its already exists
+        if os.path.exists(self.logfile):
+            os.remove(self.logfile)
 
         # Hide the console window on Windows
         startupinfo = None
@@ -72,10 +76,13 @@ class AsyncProcess(object):
         for k, v in proc_env.items():
             proc_env[k] = os.path.expandvars(v)
 
+        # Create empty log file
+        open(self.logfile, "a").close()
+
         # TODO: Configurable `tee` paths
         if sublime.platform() == "windows":
             # Use shell=True on Windows, so shell_cmd is passed through with the correct escaping
-            shell_cmd = 'start cmd /k "{cmd} 2>&1 | tee \"{log}\" & pause && exit"'.format(cmd=cmd_string(cmd) if cmd else shell_cmd, log=LOGFILE)
+            shell_cmd = 'start cmd /k "({cmd} && echo terminal_exec_end || echo terminal_exec_error) 2>&1 | tee \"{log}\" & pause && exit"'.format(cmd=cmd_string(cmd) if cmd else shell_cmd, log=self.logfile)
             self.proc = subprocess.Popen(
                 shell_cmd,
                 stdout=subprocess.PIPE,
@@ -86,7 +93,7 @@ class AsyncProcess(object):
                 shell=True)
         elif sublime.platform() == "osx":
             # Use a login shell on OSX, otherwise the users expected env vars won't be setup
-            shell_cmd = 'xterm -e "{cmd} 2>&1 | tee \"{log}\"; echo && Press ENTER to continue && read line && exit"'.format(cmd=cmd_string(cmd) if cmd else shell_cmd, log=LOGFILE)
+            shell_cmd = 'xterm -e "({cmd} && echo terminal_exec_end || echo terminal_exec_error) 2>&1 | tee \"{log}\"; echo && Press ENTER to continue && read line && exit"'.format(cmd=cmd_string(cmd) if cmd else shell_cmd, log=self.logfile)
             self.proc = subprocess.Popen(
                 ["/usr/bin/env", "bash", "-l", "-c", shell_cmd],
                 stdout=subprocess.PIPE,
@@ -100,7 +107,7 @@ class AsyncProcess(object):
             # Explicitly use /bin/bash on Linux, to keep Linux and OSX as
             # similar as possible. A login shell is explicitly not used for
             # linux, as it's not required
-            shell_cmd = 'xterm -e "{cmd} 2>&1 | tee \"{log}\"; echo && Press ENTER to continue && read line && exit"'.format(cmd=cmd_string(cmd) if cmd else shell_cmd, log=LOGFILE)
+            shell_cmd = 'xterm -e "({cmd} && echo terminal_exec_end || echo terminal_exec_error) 2>&1 | tee \"{log}\"; echo && Press ENTER to continue && read line && exit"'.format(cmd=cmd_string(cmd) if cmd else shell_cmd, log=self.logfile)
             self.proc = subprocess.Popen(
                 ["/usr/bin/env", "bash", "-c", shell_cmd],
                 stdout=subprocess.PIPE,
@@ -114,10 +121,9 @@ class AsyncProcess(object):
         if path:
             os.environ["PATH"] = old_path
 
-        log = open(LOGFILE, "rb")
         threading.Thread(
-            target=self.read_file,
-            args=(log, True)
+            target=self.read_log_file,
+            args=[self.logfile]
         ).start()
 
     def kill(self):
@@ -139,18 +145,28 @@ class AsyncProcess(object):
     def poll(self):
         return self.proc.poll() is None
 
-    def read_file(self, file, execute_finished):
-        decoder_cls = codecs.getincrementaldecoder(self.listener.encoding)
-        decoder = decoder_cls("replace")
-        while True:
-            data = decoder.decode(file.read())
-            if len(data) > 0:
+    def follow_log(self):
+        # TODO: log_handle remains open if build is cancelled in terminal
+        with open(self.logfile, encoding=self.listener.encoding) as log_handle:
+            log_handle.seek(0,2)
+            while True:
+                line = log_handle.readline()
+                if not line:
+                    time.sleep(.1)
+                    continue
+                elif any([term in line for term in ("terminal_exec_end", "terminal_exec_error")]):
+                    return None, True
+
+                yield line, False
+
+    def read_log_file(self, filename):
+        for data, execute_finished in self.follow_log():
+            if data:
                 if self.listener:
                     self.listener.on_data(self, data)
             else:
                 try:
-                    file.close()
-                    os.remove(LOGFILE)
+                    os.remove(filename)
                 except OSError:
                     pass
                 if execute_finished and self.listener:
@@ -340,18 +356,21 @@ class TerminalExecCommand(sublime_plugin.WindowCommand, ProcessListener):
             sublime.set_timeout(self.service_text_queue, 1)
 
     def finish(self, proc):
-        if not self.quiet:
-            elapsed = time.time() - proc.start_time
-            self.append_string(proc, "[Finished in {:.1f}]".format(elapsed))
 
         if proc != self.proc:
             return
 
+        elapsed = time.time() - proc.start_time
         errs = self.output_view.find_all_results()
         if len(errs) == 0:
             sublime.status_message("Build finished")
+            if not self.quiet:
+                self.append_string(proc, "[Finished in {:.1f}]".format(elapsed))
         else:
             sublime.status_message("Build finished with {} errors".format(len(errs)))
+            if not self.quiet:
+                self.append_string(proc, "[Finished in {:.1f} with {} errors]\n".format(elapsed, len(errs)))
+                self.append_string(proc, self.debug_text)
 
     def on_data(self, proc, data):
         # Normalize newlines, Sublime Text always uses a single \n separator

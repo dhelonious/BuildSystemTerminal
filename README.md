@@ -9,9 +9,8 @@ In addition the output will be put into the default Build Results panel and erro
 
 This build system is a modification of the default Sublime Text 3 `exec.py` script. However, there are some drawbacks:
 * No information about the exit code of the command is obtained.
-* No debug text is shown in the Build Results panel.
 
-The transfer of the output of the command from the terminal back to Sublime Text 3 has to be done via files. Those temporary files are stored in the Sublime Text 3 cache path and will be deleted after the transfer is complete.
+The transfer of the output of the command from the terminal back to Sublime Text 3 has to be done via files. Those temporary files are stored in the Sublime Text 3 cache path and will be deleted after the transfer is complete. However, if the build terminal is closed or interrupted during the build process, the file stream remains open. The build system will not run until Sublime Text 3 was restarted.
 
 ## Requirements
 
@@ -29,3 +28,8 @@ Basic `python` build system:
         "file_regex": "^\\s*File \"(...*?)\", line ([0-9]*)"
     }
 ```
+
+## TODO
+
+1. Make `tee` path configurable
+2. Find a reliable way to close the file handle 
