@@ -5,14 +5,11 @@ import os
 import subprocess
 import threading
 import time
-import codecs
 import signal
 
 import sublime
 import sublime_plugin
 
-
-LOGFILE = os.path.join(sublime.cache_path(), "build_system_terminal_exec.log")
 
 def cmd_string(cmd):
     if isinstance(cmd, str):
@@ -27,7 +24,7 @@ def cmd_string(cmd):
 
     return " ".join(shell_cmd)
 
-class ProcessListener(object):
+class TerminalProcessListener(object):
     def on_data(self, proc, data):
         pass
 
@@ -35,10 +32,160 @@ class ProcessListener(object):
         pass
 
 
-class AsyncProcess(object):
+TerminalIndicators = collections.namedtuple("TerminalIndicators", ["start", "end", "error"])
+
+
+class Terminal():
+    def __init__(self, env, encoding="utf-8"):
+        self.proc = None
+        self.encoding = encoding
+
+        self.env = os.environ.copy()
+        self.env.update(env)
+        for key, value in self.env.items():
+            self.env[key] = os.path.expandvars(value)
+
+        # TODO: Configurable log path
+        self.logpath = os.path.join(sublime.cache_path(), "BuildSystemTerminal")
+        self.logfile = os.path.join(self.logpath, "terminal_exec.log")
+
+        self.indicators = TerminalIndicators(
+            "[terminal_exec_start]",
+            "[terminal_exec_end]",
+            "[terminal_exec_error]",
+        )
+
+        # Create log path if it does not exist
+        if not os.path.exists(self.logpath):
+            os.makedirs(self.logpath)
+
+        # Remove log file if its already exists
+        if os.path.exists(self.logfile):
+            os.remove(self.logfile)
+
+    def __del__(self):
+        self.terminate()
+
+    def run(self, cmd):
+
+        # Create empty log file
+        if not os.path.exists(self.logfile):
+            open(self.logfile, "a").close()
+
+        shell_cmd = "echo {start} && ({cmd} && echo {end} || echo {error})".format(
+            cmd=cmd,
+            start=self.indicators.start,
+            end=self.indicators.end,
+            error=self.indicators.error,
+        )
+        shell_cmd = "{cmd} 2>&1 | tee \"{log}\"".format(
+            cmd=shell_cmd,
+            log=self.logfile,
+        )
+
+        if sublime.platform() == "windows":
+            # Use shell=True on Windows, so shell_cmd is passed through
+            # with the correct escaping the startupinfo flag is used for hiding
+            # the console window
+
+            shell_cmd = "{} & pause && exit".format(shell_cmd)
+            terminal_cmd = "start /wait cmd /k \"{}\"".format(shell_cmd)
+            terminal_settings = {
+                "startupinfo": subprocess.STARTUPINFO(),
+                "shell": True,
+            }
+            terminal_settings["startupinfo"].dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
+        elif sublime.platform() == "osx":
+            # Use a login shell on OSX, otherwise the users expected
+            # env vars won't be setup
+
+            shell_cmd = "{}; echo && Press ENTER to continue && read line && exit".format(shell_cmd)
+            terminal_cmd = [
+                "/usr/bin/env",
+                "bash",
+                "-l",
+                "-c",
+                "xterm -e \"{}\"".format(shell_cmd)
+            ]
+            terminal_settings = {
+                "preexec_fn": os.setsid,
+                "shell": False,
+            }
+
+        elif sublime.platform() == "linux":
+            # Explicitly use /bin/bash on Linux, to keep Linux and OSX as
+            # similar as possible. A login shell is explicitly not used for
+            # linux, as it's not required
+
+            shell_cmd = "{}; echo && Press ENTER to continue && read line && exit".format(shell_cmd)
+            terminal_cmd = [
+                "/usr/bin/env",
+                "bash",
+                "-c",
+                "xterm -e \"{}\"".format(shell_cmd)
+            ]
+            terminal_settings = {
+                "preexec_fn": os.setsid,
+                "shell": False,
+            }
+
+        self.proc = subprocess.Popen(
+            terminal_cmd,
+            stdout=subprocess.PIPE, # TODO: necessary?
+            stderr=subprocess.PIPE, # TODO: necessary?
+            stdin=subprocess.PIPE,
+            env=self.env,
+            **terminal_settings
+        )
+
+    def terminate(self):
+        if self.running:
+            if sublime.platform() == "windows":
+                # terminate would not kill process opened by the shell cmd.exe,
+                # it will only kill cmd.exe leaving the child running
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                subprocess.Popen(
+                    "taskkill /PID {:d} /T /F".format(self.proc.pid),
+                    startupinfo=startupinfo
+                )
+            else:
+                os.killpg(self.proc.pid, signal.SIGTERM)
+                self.proc.terminate()
+
+        if os.path.exists(self.logfile):
+            os.remove(self.logfile)
+
+    @property
+    def running(self):
+        if self.proc:
+            return self.proc.poll() is None
+        return False
+
+    @property
+    def stdout(self):
+        if os.path.exists(self.logfile):
+            with open(self.logfile, encoding=self.encoding) as stdout:
+                stdout.seek(0,2)
+                while self.running: # TODO: Check if this works on linux
+                    line = stdout.readline()
+                    if not line:
+                        time.sleep(.1)
+                        continue
+                    elif any([term in line for term in (self.indicators.end, self.indicators.error)]):
+                        yield None
+                        break
+
+                    yield line
+
+            os.remove(self.logfile)
+
+
+class AsyncTerminalProcess(object):
     """
     Encapsulates subprocess.Popen, forwarding stdout to a supplied
-    ProcessListener (on a separate thread)
+    TerminalProcessListener (on a separate thread)
     """
 
     def __init__(self, cmd, shell_cmd, env, listener, path=""):
@@ -52,17 +199,6 @@ class AsyncProcess(object):
         self.listener = listener
         self.killed = False
         self.start_time = time.time()
-        self.logfile = LOGFILE
-
-        # Remove log file if its already exists
-        if os.path.exists(self.logfile):
-            os.remove(self.logfile)
-
-        # Hide the console window on Windows
-        startupinfo = None
-        if os.name == "nt":
-            startupinfo = subprocess.STARTUPINFO()
-            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
         # Set temporary PATH to locate executable in cmd
         if path:
@@ -71,110 +207,36 @@ class AsyncProcess(object):
             # or tuck it at the front: "$PATH;C:\\new\\path", "C:\\new\\path;$PATH"
             os.environ["PATH"] = os.path.expandvars(path)
 
-        proc_env = os.environ.copy()
-        proc_env.update(env)
-        for k, v in proc_env.items():
-            proc_env[k] = os.path.expandvars(v)
-
-        # Create empty log file
-        open(self.logfile, "a").close()
-
-        # TODO: Configurable `tee` paths
-        if sublime.platform() == "windows":
-            # Use shell=True on Windows, so shell_cmd is passed through with the correct escaping
-            shell_cmd = 'start cmd /k "({cmd} && echo terminal_exec_end || echo terminal_exec_error) 2>&1 | tee \"{log}\" & pause && exit"'.format(cmd=cmd_string(cmd) if cmd else shell_cmd, log=self.logfile)
-            self.proc = subprocess.Popen(
-                shell_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                stdin=subprocess.PIPE,
-                startupinfo=startupinfo,
-                env=proc_env,
-                shell=True)
-        elif sublime.platform() == "osx":
-            # Use a login shell on OSX, otherwise the users expected env vars won't be setup
-            shell_cmd = 'xterm -e "({cmd} && echo terminal_exec_end || echo terminal_exec_error) 2>&1 | tee \"{log}\"; echo && Press ENTER to continue && read line && exit"'.format(cmd=cmd_string(cmd) if cmd else shell_cmd, log=self.logfile)
-            self.proc = subprocess.Popen(
-                ["/usr/bin/env", "bash", "-l", "-c", shell_cmd],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                stdin=subprocess.PIPE,
-                startupinfo=startupinfo,
-                env=proc_env,
-                preexec_fn=os.setsid,
-                shell=False)
-        elif sublime.platform() == "linux":
-            # Explicitly use /bin/bash on Linux, to keep Linux and OSX as
-            # similar as possible. A login shell is explicitly not used for
-            # linux, as it's not required
-            shell_cmd = 'xterm -e "({cmd} && echo terminal_exec_end || echo terminal_exec_error) 2>&1 | tee \"{log}\"; echo && Press ENTER to continue && read line && exit"'.format(cmd=cmd_string(cmd) if cmd else shell_cmd, log=self.logfile)
-            self.proc = subprocess.Popen(
-                ["/usr/bin/env", "bash", "-c", shell_cmd],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                stdin=subprocess.PIPE,
-                startupinfo=startupinfo,
-                env=proc_env,
-                preexec_fn=os.setsid,
-                shell=False)
+        # TODO: Terminal
+        self.terminal = Terminal(env, encoding=self.listener.encoding)
+        self.terminal.run(cmd_string(cmd) if cmd else shell_cmd)
 
         if path:
             os.environ["PATH"] = old_path
 
-        threading.Thread(
-            target=self.read_log_file,
-            args=[self.logfile]
-        ).start()
+        threading.Thread(target=self.process_output).start()
 
     def kill(self):
         if not self.killed:
             self.killed = True
-            if sublime.platform() == "windows":
-                # terminate would not kill process opened by the shell cmd.exe,
-                # it will only kill cmd.exe leaving the child running
-                startupinfo = subprocess.STARTUPINFO()
-                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                subprocess.Popen(
-                    "taskkill /PID {:d} /T /F".format(self.proc.pid),
-                    startupinfo=startupinfo)
-            else:
-                os.killpg(self.proc.pid, signal.SIGTERM)
-                self.proc.terminate()
+            self.terminal.terminate()
             self.listener = None
 
     def poll(self):
-        return self.proc.poll() is None
+        return self.terminal.running
 
-    def follow_log(self):
-        # TODO: log_handle remains open if build is cancelled in terminal
-        with open(self.logfile, encoding=self.listener.encoding) as log_handle:
-            log_handle.seek(0,2)
-            while True:
-                line = log_handle.readline()
-                if not line:
-                    time.sleep(.1)
-                    continue
-                elif any([term in line for term in ("terminal_exec_end", "terminal_exec_error")]):
-                    return None, True
-
-                yield line, False
-
-    def read_log_file(self, filename):
-        for data, execute_finished in self.follow_log():
+    def process_output(self):
+        for data in self.terminal.stdout:
             if data:
                 if self.listener:
                     self.listener.on_data(self, data)
             else:
-                try:
-                    os.remove(filename)
-                except OSError:
-                    pass
-                if execute_finished and self.listener:
+                if self.listener:
                     self.listener.on_finished(self)
                 break
 
 
-class TerminalExecCommand(sublime_plugin.WindowCommand, ProcessListener):
+class TerminalExecCommand(sublime_plugin.WindowCommand, TerminalProcessListener):
     BLOCK_SIZE = 2**14
     text_queue = collections.deque()
     text_queue_proc = None
@@ -279,8 +341,8 @@ class TerminalExecCommand(sublime_plugin.WindowCommand, ProcessListener):
             self.debug_text += "[path: " + str(os.environ["PATH"]) + "]"
 
         try:
-            # Forward kwargs to AsyncProcess
-            self.proc = AsyncProcess(cmd, shell_cmd, merged_env, self, **kwargs)
+            # Forward kwargs to AsyncTerminalProcess
+            self.proc = AsyncTerminalProcess(cmd, shell_cmd, merged_env, self, **kwargs)
 
             with self.text_queue_lock:
                 self.text_queue_proc = self.proc
