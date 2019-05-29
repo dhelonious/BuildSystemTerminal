@@ -1,0 +1,7 @@
+[
+    {
+        "caption": "Terminal Build: Cancel",
+        "command": "terminal_exec",
+        "args": {"kill": true}
+    }
+]

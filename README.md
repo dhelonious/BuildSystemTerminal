@@ -31,4 +31,3 @@ Basic `python` build system:
 ## TODO
 
 1. Test on Unix
-2. Make "Cancel Build" work

@@ -24,7 +24,7 @@ def cmd_string(cmd):
 
     return " ".join(shell_cmd)
 
-class TerminalProcessListener(object):
+class TerminalProcessListener():
     def on_data(self, proc, data):
         pass
 
@@ -32,7 +32,10 @@ class TerminalProcessListener(object):
         pass
 
 
-TerminalIndicators = collections.namedtuple("TerminalIndicators", ["start", "end", "error"])
+TerminalIndicators = collections.namedtuple(
+    "TerminalIndicators",
+    ["start", "end", "error", "cache"]
+)
 
 
 class Terminal():
@@ -53,6 +56,7 @@ class Terminal():
             "[terminal_exec_start]",
             "[terminal_exec_end]",
             "[terminal_exec_error]",
+            "[terminal_exec_cache]",
         )
 
         # Create log path if it does not exist
@@ -158,8 +162,15 @@ class Terminal():
                 os.killpg(self.proc.pid, signal.SIGTERM)
                 self.proc.terminate()
 
+        self.clear_cache()
+
+    def clear_cache(self):
         if os.path.exists(self.logfile):
-            os.remove(self.logfile)
+            try:
+                os.remove(self.logfile)
+            except PermissionError:
+                # print("{} Files in cache could not be cleared. They might be used by another process.".format(self.indicators.cache))
+                pass
 
     @property
     def running(self):
@@ -183,10 +194,10 @@ class Terminal():
 
                     yield line
 
-            os.remove(self.logfile)
+                self.clear_cache()
 
 
-class AsyncTerminalProcess(object):
+class AsyncTerminalProcess():
     """
     Encapsulates subprocess.Popen, forwarding stdout to a supplied
     TerminalProcessListener (on a separate thread)
@@ -211,7 +222,6 @@ class AsyncTerminalProcess(object):
             # or tuck it at the front: "$PATH;C:\\new\\path", "C:\\new\\path;$PATH"
             os.environ["PATH"] = os.path.expandvars(path)
 
-        # TODO: Terminal
         self.terminal = Terminal(env, encoding=self.listener.encoding)
         self.terminal.run(cmd_string(cmd) if cmd else shell_cmd)
 
