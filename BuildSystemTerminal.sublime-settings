@@ -1,0 +1,7 @@
+{
+    "tee": {
+        "linux": "tee",
+        "windows": "tee",
+        "osx": "tee"
+    }
+}

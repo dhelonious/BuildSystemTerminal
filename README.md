@@ -13,7 +13,7 @@ The transfer of the output of the command from the terminal back to Sublime Text
 
 ## Requirements
 
-This package requires `tee`, which is a default Unix command. A port for Windows can be found [here](http://gnuwin32.sourceforge.net/packages/coreutils.htm). Don't forget to add the executable path (default `C:\Program Files (x86)\GnuWin32\bin`) to your Windows environment variable `Path`.
+This package requires `tee`, which is a default Unix command. A port for Windows can be found [here](http://gnuwin32.sourceforge.net/packages/coreutils.htm). Don't forget to add the executable path (default `C:\Program Files (x86)\GnuWin32\bin`) to your Windows environment variable `Path`. Alternatively you can specify the path for tee in the package user settings.
 
 ## Example
 
@@ -32,4 +32,3 @@ Basic `python` build system:
 
 1. Test on Unix
 2. Make "Cancel Build" work
-3. Make `tee` paths configurable

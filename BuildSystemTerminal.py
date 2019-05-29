@@ -78,9 +78,13 @@ class Terminal():
             end=self.indicators.end,
             error=self.indicators.error,
         )
-        shell_cmd = "{cmd} 2>&1 | tee \"{log}\"".format(
+
+        settings = sublime.load_settings("BuildSystemTerminal.sublime-settings")
+        tee_path = settings.get("tee")[sublime.platform()]
+        shell_cmd = "{cmd} 2>&1 | {tee} \"{log}\"".format(
             cmd=shell_cmd,
             log=self.logfile,
+            tee=tee_path,
         )
 
         if sublime.platform() == "windows":

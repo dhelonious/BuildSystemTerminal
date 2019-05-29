@@ -1,0 +1,26 @@
+[
+    {
+        "caption": "Preferences",
+        "mnemonic": "n",
+        "id": "preferences",
+        "children":
+        [
+            {
+                "caption": "Package Settings",
+                "mnemonic": "P",
+                "id": "package-settings",
+                "children":
+                [
+                    {
+                        "caption": "BuildSystemTerminal",
+                        "command": "edit_settings",
+                        "args": {
+                            "base_file": "${packages}/BuildSystemTerminal/BuildSystemTerminal.sublime-settings",
+                            "default": "// Settings in here override the default settings.\n{\n\t$0\n}\n"
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+]
