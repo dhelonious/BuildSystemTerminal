@@ -25,10 +25,10 @@ def cmd_string(cmd):
     return " ".join(shell_cmd)
 
 class TerminalProcessListener():
-    def on_data(self, proc, data):
+    def _on_data(self, proc, data):
         pass
 
-    def on_finished(self, proc):
+    def _on_finished(self, proc):
         pass
 
 
@@ -203,13 +203,7 @@ class AsyncTerminalProcess():
     TerminalProcessListener (on a separate thread)
     """
 
-    def __init__(self, cmd, shell_cmd, env, listener, path=""):
-
-        if not shell_cmd and not cmd:
-            raise ValueError("shell_cmd or cmd is required")
-
-        if shell_cmd and not isinstance(shell_cmd, str):
-            raise ValueError("shell_cmd must be a string")
+    def __init__(self, cmd, env, listener, path=""):
 
         self.listener = listener
         self.killed = False
@@ -223,12 +217,12 @@ class AsyncTerminalProcess():
             os.environ["PATH"] = os.path.expandvars(path)
 
         self.terminal = Terminal(env, encoding=self.listener.encoding)
-        self.terminal.run(cmd_string(cmd) if cmd else shell_cmd)
+        self.terminal.run(cmd)
 
         if path:
             os.environ["PATH"] = old_path
 
-        threading.Thread(target=self.process_output).start()
+        threading.Thread(target=self._process_output).start()
 
     def kill(self):
         if not self.killed:
@@ -239,14 +233,14 @@ class AsyncTerminalProcess():
     def poll(self):
         return self.terminal.running
 
-    def process_output(self):
+    def _process_output(self):
         for data in self.terminal.stdout:
             if data:
                 if self.listener:
-                    self.listener.on_data(self, data)
+                    self.listener._on_data(self, data)
             else:
                 if self.listener:
-                    self.listener.on_finished(self)
+                    self.listener._on_finished(self)
                 break
 
 
@@ -277,8 +271,15 @@ class TerminalExecCommand(sublime_plugin.WindowCommand, TerminalProcessListener)
             hide_phantoms_only=False,
             word_wrap=True,
             syntax="Packages/Text/Plain text.tmLanguage",
+            prompt=False,
             # Catches "path" and "shell"
             **kwargs):
+
+        if not shell_cmd and not cmd:
+            raise ValueError("shell_cmd or cmd is required")
+
+        if shell_cmd and not isinstance(shell_cmd, str):
+            raise ValueError("shell_cmd must be a string")
 
         if update_phantoms_only:
             if self.show_errors_inline:
@@ -297,7 +298,7 @@ class TerminalExecCommand(sublime_plugin.WindowCommand, TerminalProcessListener)
             if self.proc:
                 self.proc.kill()
                 self.proc = None
-                self.append_string(None, "[Cancelled]")
+                self._append_string(None, "[Cancelled]")
             return
 
         if not hasattr(self, "output_view"):
@@ -354,18 +355,30 @@ class TerminalExecCommand(sublime_plugin.WindowCommand, TerminalProcessListener)
         else:
             self.debug_text += "[path: " + str(os.environ["PATH"]) + "]"
 
+        if prompt:
+            self.window.show_input_panel(
+                "$",
+                cmd_string(cmd) if cmd else shell_cmd,
+                lambda cmd: self._start_process(cmd, merged_env, **kwargs),
+                None,
+                None
+            )
+        else:
+            self._start_process(cmd_string(cmd) if cmd else shell_cmd, merged_env, **kwargs)
+
+    def _start_process(self, cmd, env, **kwargs):
         try:
             # Forward kwargs to AsyncTerminalProcess
-            self.proc = AsyncTerminalProcess(cmd, shell_cmd, merged_env, self, **kwargs)
+            self.proc = AsyncTerminalProcess(cmd, env, self, **kwargs)
 
             with self.text_queue_lock:
                 self.text_queue_proc = self.proc
 
         except Exception as e:
-            self.append_string(None, str(e) + "\n")
-            self.append_string(None, self.debug_text + "\n")
+            self._append_string(None, str(e) + "\n")
+            self._append_string(None, self.debug_text + "\n")
             if not self.quiet:
-                self.append_string(None, "[Finished]")
+                self._append_string(None, "[Finished]")
 
     def is_enabled(self, kill=False, **kwargs):
         if kill:
@@ -373,7 +386,7 @@ class TerminalExecCommand(sublime_plugin.WindowCommand, TerminalProcessListener)
         else:
             return True
 
-    def append_string(self, proc, string):
+    def _append_string(self, proc, string):
         was_empty = False
         with self.text_queue_lock:
             if proc != self.text_queue_proc and proc:
@@ -395,9 +408,9 @@ class TerminalExecCommand(sublime_plugin.WindowCommand, TerminalProcessListener)
                 self.text_queue.append(string)
 
         if was_empty:
-            sublime.set_timeout(self.service_text_queue, 0)
+            sublime.set_timeout(self._service_text_queue, 0)
 
-    def service_text_queue(self):
+    def _service_text_queue(self):
         is_empty = False
         with self.text_queue_lock:
             if len(self.text_queue) == 0:
@@ -429,7 +442,7 @@ class TerminalExecCommand(sublime_plugin.WindowCommand, TerminalProcessListener)
             self.update_phantoms()
 
         if not is_empty:
-            sublime.set_timeout(self.service_text_queue, 1)
+            sublime.set_timeout(self._service_text_queue, 1)
 
     def finish(self, proc):
 
@@ -441,21 +454,21 @@ class TerminalExecCommand(sublime_plugin.WindowCommand, TerminalProcessListener)
         if len(errs) == 0:
             sublime.status_message("Build finished")
             if not self.quiet:
-                self.append_string(proc, "[Finished in {:.1f}]".format(elapsed))
+                self._append_string(proc, "[Finished in {:.1f}]".format(elapsed))
         else:
             sublime.status_message("Build finished with {} errors".format(len(errs)))
             if not self.quiet:
-                self.append_string(proc, "[Finished in {:.1f} with {} errors]\n".format(elapsed, len(errs)))
-                self.append_string(proc, self.debug_text)
+                self._append_string(proc, "[Finished in {:.1f} with {} errors]\n".format(elapsed, len(errs)))
+                self._append_string(proc, self.debug_text)
 
-    def on_data(self, proc, data):
+    def _on_data(self, proc, data):
         # Normalize newlines, Sublime Text always uses a single \n separator
         # in memory.
         data = data.replace("\r\n", "\n").replace("\r", "\n")
 
-        self.append_string(proc, data)
+        self._append_string(proc, data)
 
-    def on_finished(self, proc):
+    def _on_finished(self, proc):
         sublime.set_timeout(functools.partial(self.finish, proc), 0)
 
     def update_phantoms(self):
@@ -518,7 +531,7 @@ class TerminalExecCommand(sublime_plugin.WindowCommand, TerminalProcessListener)
                                </div>
                            </body>""".format(stylesheet, html.escape(text, quote=False), chr(0x00D7)),
                         sublime.LAYOUT_BELOW,
-                        on_navigate=self.on_phantom_navigate
+                        on_navigate=self._on_phantom_navigate
                     ))
 
                 phantom_set.update(phantoms)
@@ -533,7 +546,7 @@ class TerminalExecCommand(sublime_plugin.WindowCommand, TerminalProcessListener)
         self.phantom_sets_by_buffer = {}
         self.show_errors_inline = False
 
-    def on_phantom_navigate(self, url):
+    def _on_phantom_navigate(self, url):
         self.hide_phantoms()
 
 
