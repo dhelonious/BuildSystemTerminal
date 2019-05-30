@@ -25,10 +25,10 @@ def cmd_string(cmd):
     return " ".join(shell_cmd)
 
 class TerminalProcessListener():
-    def _on_data(self, proc, data):
+    def on_data(self, proc, data):
         pass
 
-    def _on_finished(self, proc):
+    def on_finished(self, proc):
         pass
 
 
@@ -237,10 +237,10 @@ class AsyncTerminalProcess():
         for data in self.terminal.stdout:
             if data:
                 if self.listener:
-                    self.listener._on_data(self, data)
+                    self.listener.on_data(self, data)
             else:
                 if self.listener:
-                    self.listener._on_finished(self)
+                    self.listener.on_finished(self)
                 break
 
 
@@ -275,12 +275,6 @@ class TerminalExecCommand(sublime_plugin.WindowCommand, TerminalProcessListener)
             # Catches "path" and "shell"
             **kwargs):
 
-        if not shell_cmd and not cmd:
-            raise ValueError("shell_cmd or cmd is required")
-
-        if shell_cmd and not isinstance(shell_cmd, str):
-            raise ValueError("shell_cmd must be a string")
-
         if update_phantoms_only:
             if self.show_errors_inline:
                 self.update_phantoms()
@@ -298,8 +292,14 @@ class TerminalExecCommand(sublime_plugin.WindowCommand, TerminalProcessListener)
             if self.proc:
                 self.proc.kill()
                 self.proc = None
-                self._append_string(None, "[Cancelled]")
+                self.append_string(None, "[Cancelled]")
             return
+
+        if not shell_cmd and not cmd:
+            raise ValueError("shell_cmd or cmd is required")
+
+        if shell_cmd and not isinstance(shell_cmd, str):
+            raise ValueError("shell_cmd must be a string")
 
         if not hasattr(self, "output_view"):
             # Try not to call get_output_panel until the regexes are assigned
@@ -375,10 +375,10 @@ class TerminalExecCommand(sublime_plugin.WindowCommand, TerminalProcessListener)
                 self.text_queue_proc = self.proc
 
         except Exception as e:
-            self._append_string(None, str(e) + "\n")
-            self._append_string(None, self.debug_text + "\n")
+            self.append_string(None, str(e) + "\n")
+            self.append_string(None, self.debug_text + "\n")
             if not self.quiet:
-                self._append_string(None, "[Finished]")
+                self.append_string(None, "[Finished]")
 
     def is_enabled(self, kill=False, **kwargs):
         if kill:
@@ -386,7 +386,7 @@ class TerminalExecCommand(sublime_plugin.WindowCommand, TerminalProcessListener)
         else:
             return True
 
-    def _append_string(self, proc, string):
+    def append_string(self, proc, string):
         was_empty = False
         with self.text_queue_lock:
             if proc != self.text_queue_proc and proc:
@@ -408,9 +408,9 @@ class TerminalExecCommand(sublime_plugin.WindowCommand, TerminalProcessListener)
                 self.text_queue.append(string)
 
         if was_empty:
-            sublime.set_timeout(self._service_text_queue, 0)
+            sublime.set_timeout(self.service_text_queue, 0)
 
-    def _service_text_queue(self):
+    def service_text_queue(self):
         is_empty = False
         with self.text_queue_lock:
             if len(self.text_queue) == 0:
@@ -442,7 +442,7 @@ class TerminalExecCommand(sublime_plugin.WindowCommand, TerminalProcessListener)
             self.update_phantoms()
 
         if not is_empty:
-            sublime.set_timeout(self._service_text_queue, 1)
+            sublime.set_timeout(self.service_text_queue, 1)
 
     def finish(self, proc):
 
@@ -454,21 +454,21 @@ class TerminalExecCommand(sublime_plugin.WindowCommand, TerminalProcessListener)
         if len(errs) == 0:
             sublime.status_message("Build finished")
             if not self.quiet:
-                self._append_string(proc, "[Finished in {:.1f}]".format(elapsed))
+                self.append_string(proc, "[Finished in {:.1f}]".format(elapsed))
         else:
             sublime.status_message("Build finished with {} errors".format(len(errs)))
             if not self.quiet:
-                self._append_string(proc, "[Finished in {:.1f} with {} errors]\n".format(elapsed, len(errs)))
-                self._append_string(proc, self.debug_text)
+                self.append_string(proc, "[Finished in {:.1f} with {} errors]\n".format(elapsed, len(errs)))
+                self.append_string(proc, self.debug_text)
 
-    def _on_data(self, proc, data):
+    def on_data(self, proc, data):
         # Normalize newlines, Sublime Text always uses a single \n separator
         # in memory.
         data = data.replace("\r\n", "\n").replace("\r", "\n")
 
-        self._append_string(proc, data)
+        self.append_string(proc, data)
 
-    def _on_finished(self, proc):
+    def on_finished(self, proc):
         sublime.set_timeout(functools.partial(self.finish, proc), 0)
 
     def update_phantoms(self):

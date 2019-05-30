@@ -5,7 +5,7 @@ Run Sublime Text 3 builds in a native terminal instead of the console.
 Simply choose the `"terminal_exec"` target in any build system. The command will run in a terminal window which is either:
 * `xterm` (Unix)
 * `cmd` (Windows)
-In addition the output will be put into the default Build Results panel and errors are shown inline.
+In addition the output will be put into the default Build Results panel and errors are shown inline. To cancel any terminal build system use `Terminal Build: Cancel`.
 
 This build system is a modification of the default Sublime Text 3 `exec.py` script. However, in contrast to the default build system script no information about the exit code of the command can be obtained.
 
@@ -29,7 +29,14 @@ Basic `python` build system:
         "selector": "source.python",
         "cmd": ["python", "$file"],
         "file_regex": "^\\s*File \"(...*?)\", line ([0-9]*)",
-        "prompt": false
+        "prompt": false,
+        "variants":
+        [
+            {
+                "name": "Cancel",
+                "kill": true
+            }
+        ]
     }
 ```
 
