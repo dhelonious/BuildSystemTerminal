@@ -13,11 +13,21 @@
                 [
                     {
                         "caption": "BuildSystemTerminal",
-                        "command": "edit_settings",
-                        "args": {
-                            "base_file": "${packages}/BuildSystemTerminal/BuildSystemTerminal.sublime-settings",
-                            "default": "// Settings in here override the default settings.\n{\n\t$0\n}\n"
-                        }
+                        "children":
+                        [
+                            {
+                                "caption": "Settings",
+                                "command": "edit_settings",
+                                "args": {
+                                    "base_file": "${packages}/BuildSystemTerminal/BuildSystemTerminal.sublime-settings",
+                                    "default": "// Settings in here override the default settings.\n{\n\t$0\n}\n"
+                                }
+                            },
+                            {
+                                "caption": "Clear Cache",
+                                "command": "clear_terminal_exec_cache"
+                            }
+                        ]
                     }
                 ]
             }

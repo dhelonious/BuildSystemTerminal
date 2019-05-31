@@ -2,6 +2,7 @@ import collections
 import functools
 import html
 import os
+import shutil
 import subprocess
 import threading
 import time
@@ -10,6 +11,17 @@ import signal
 import sublime
 import sublime_plugin
 
+
+LOGPATH = os.path.join(sublime.cache_path(), "BuildSystemTerminal")
+
+
+def plugin_loaded():
+    # Create log path if it does not exist
+    if not os.path.exists(LOGPATH):
+        os.makedirs(LOGPATH)
+
+def log(msg):
+    print("[BuildSystemTerminal] {}".format(msg))
 
 def cmd_string(cmd):
     if isinstance(cmd, str):
@@ -23,6 +35,7 @@ def cmd_string(cmd):
             shell_cmd.append(part)
 
     return " ".join(shell_cmd)
+
 
 class TerminalProcessListener():
     def on_data(self, proc, data):
@@ -48,9 +61,8 @@ class Terminal():
         for key, value in self.env.items():
             self.env[key] = os.path.expandvars(value)
 
-        # TODO: Configurable log path
-        self.logpath = os.path.join(sublime.cache_path(), "BuildSystemTerminal")
-        self.logfile = os.path.join(self.logpath, "terminal_exec.log")
+        # TODO: Use hashing for multiple files
+        self.logfile = os.path.join(LOGPATH, "terminal_exec.log")
 
         self.indicators = TerminalIndicators(
             "[terminal_exec_start]",
@@ -58,10 +70,6 @@ class Terminal():
             "[terminal_exec_error]",
             "[terminal_exec_cache]",
         )
-
-        # Create log path if it does not exist
-        if not os.path.exists(self.logpath):
-            os.makedirs(self.logpath)
 
         # Remove log file if its already exists
         if os.path.exists(self.logfile):
@@ -140,8 +148,6 @@ class Terminal():
 
         self.proc = subprocess.Popen(
             terminal_cmd,
-            stdout=subprocess.PIPE, # TODO: necessary?
-            stderr=subprocess.PIPE, # TODO: necessary?
             stdin=subprocess.PIPE,
             env=self.env,
             **terminal_settings
@@ -555,3 +561,12 @@ class TerminalExecEventListener(sublime_plugin.EventListener):
         w = view.window()
         if w is not None:
             w.run_command("terminal_exec", {"update_phantoms_only": True})
+
+
+class ClearTerminalExecCacheCommand(sublime_plugin.WindowCommand):
+    def run(self):
+        try:
+            shutil.rmtree(LOGPATH)
+            log("Cache cleared")
+        except Exception as e:
+            log(e)
