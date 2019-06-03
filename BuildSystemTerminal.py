@@ -18,7 +18,7 @@ LOGPATH = os.path.join(sublime.cache_path(), "BuildSystemTerminal")
 def plugin_loaded():
     # Create log path if it does not exist
     if not os.path.exists(LOGPATH):
-        os.makedirs(LOGPATH)
+        os.mkdir(LOGPATH)
 
 def log(msg):
     print("[BuildSystemTerminal] {}".format(msg))
