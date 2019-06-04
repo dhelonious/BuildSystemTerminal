@@ -39,7 +39,3 @@ Basic `python` build system:
         ]
     }
 ```
-
-## TODO
-
-1. Use hashing for multiple exchange files
