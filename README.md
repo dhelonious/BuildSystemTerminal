@@ -42,5 +42,4 @@ Basic `python` build system:
 
 ## TODO
 
-1. Test on Unix
-2. Use hashing for multiple exchange files
+1. Use hashing for multiple exchange files

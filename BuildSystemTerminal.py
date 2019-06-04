@@ -12,7 +12,7 @@ import sublime
 import sublime_plugin
 
 
-LOGPATH = os.path.join(sublime.cache_path(), "BuildSystemTerminal")
+LOGPATH = os.path.abspath(os.path.join(sublime.cache_path(), "BuildSystemTerminal"))
 
 
 def plugin_loaded():
@@ -116,13 +116,13 @@ class Terminal():
             # Use a login shell on OSX, otherwise the users expected
             # env vars won't be setup
 
-            shell_cmd = "{}; echo && Press ENTER to continue && read line && exit".format(shell_cmd)
+            shell_cmd = "{}; echo && echo Press ENTER to continue && read && exit".format(shell_cmd)
             terminal_cmd = [
                 "/usr/bin/env",
                 "bash",
                 "-l",
                 "-c",
-                "xterm -e \"{}\"".format(shell_cmd)
+                "xterm -e \"{}; read\"".format(shell_cmd)
             ]
             terminal_settings = {
                 "preexec_fn": os.setsid,
@@ -134,12 +134,12 @@ class Terminal():
             # similar as possible. A login shell is explicitly not used for
             # linux, as it's not required
 
-            shell_cmd = "{}; echo && Press ENTER to continue && read line && exit".format(shell_cmd)
+            shell_cmd = "{}; echo && echo Press ENTER to continue && read && exit".format(shell_cmd)
             terminal_cmd = [
                 "/usr/bin/env",
                 "bash",
                 "-c",
-                "xterm -e \"{}\"".format(shell_cmd)
+                "xterm -e \"{}; read\"".format(shell_cmd)
             ]
             terminal_settings = {
                 "preexec_fn": os.setsid,
@@ -189,7 +189,7 @@ class Terminal():
         if os.path.exists(self.logfile):
             with open(self.logfile, encoding=self.encoding) as stdout:
                 stdout.seek(0,2)
-                while self.running: # TODO: Check if this works on linux
+                while self.running:
                     line = stdout.readline()
                     if not line:
                         time.sleep(.1)
@@ -381,6 +381,7 @@ class TerminalExecCommand(sublime_plugin.WindowCommand, TerminalProcessListener)
                 self.text_queue_proc = self.proc
 
         except Exception as e:
+            log("An error occured while running {}. See the Build Results panel for details.".format(cmd))
             self.append_string(None, str(e) + "\n")
             self.append_string(None, self.debug_text + "\n")
             if not self.quiet:
