@@ -84,11 +84,11 @@ class Terminal():
         if not os.path.exists(self.logfile):
             open(self.logfile, "a").close()
 
-        shell_cmd = "echo {start} && ({cmd} && echo {end} || echo {error})".format(
+        shell_cmd = "{{terminal_exec_echo}} {start} && {cmd} && {{terminal_exec_echo}} {end} || {{terminal_exec_echo}} {error}".format(
             cmd=cmd,
-            start=self.indicators.start,
-            end=self.indicators.end,
-            error=self.indicators.error,
+            start="\x1b[42m{}\x1b[0m".format(self.indicators.start),
+            end="\x1b[42m{}\x1b[0m".format(self.indicators.end),
+            error="\x1b[41m{}\x1b[0m".format(self.indicators.error),
         )
 
         settings = sublime.load_settings("BuildSystemTerminal.sublime-settings")
@@ -104,6 +104,9 @@ class Terminal():
             # with the correct escaping the startupinfo flag is used for hiding
             # the console window
 
+            shell_cmd = shell_cmd.format(
+                terminal_exec_echo="\"{}\"".format(os.path.join(os.path.dirname(os.path.abspath(__file__)), "echo.bat"))
+            )
             shell_cmd = "{} & pause && exit".format(shell_cmd)
             terminal_cmd = "start /wait cmd /k \"{}\"".format(shell_cmd)
             terminal_settings = {
@@ -116,6 +119,7 @@ class Terminal():
             # Use a login shell on OSX, otherwise the users expected
             # env vars won't be setup
 
+            shell_cmd = shell_cmd.format(terminal_exec_echo="echo & echo")
             shell_cmd = "{}; echo && echo Press ENTER to continue && read && exit".format(shell_cmd)
             terminal_cmd = [
                 "/usr/bin/env",
@@ -134,6 +138,7 @@ class Terminal():
             # similar as possible. A login shell is explicitly not used for
             # linux, as it's not required
 
+            shell_cmd = shell_cmd.format(terminal_exec_echo="echo & echo")
             shell_cmd = "{}; echo && echo Press ENTER to continue && read && exit".format(shell_cmd)
             terminal_cmd = [
                 "/usr/bin/env",
