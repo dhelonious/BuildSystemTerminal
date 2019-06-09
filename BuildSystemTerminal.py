@@ -45,12 +45,6 @@ class TerminalProcessListener():
         pass
 
 
-TerminalIndicators = collections.namedtuple(
-    "TerminalIndicators",
-    ["start", "end"]
-)
-
-
 class Terminal():
     def __init__(self, env, encoding="utf-8"):
         self.proc = None
@@ -63,11 +57,6 @@ class Terminal():
 
         # TODO: Use hashing for multiple files
         self.logfile = os.path.join(LOGPATH, "terminal_exec.log")
-
-        self.indicators = TerminalIndicators(
-            "[terminal_exec_start]",
-            "[terminal_exec_end]",
-        )
 
         # Remove log file if its already exists
         if os.path.exists(self.logfile):
@@ -84,12 +73,10 @@ class Terminal():
 
         settings = sublime.load_settings("BuildSystemTerminal.sublime-settings")
         tee_path = settings.get("tee")[sublime.platform()]
-        shell_cmd = "{terminal_exec_start} && ({cmd} 2>&1 | {tee} \"{log}\") && {terminal_exec_stop}".format(
+        shell_cmd = "{cmd} 2>&1 | {tee} \"{log}\"".format(
             cmd=cmd,
-            log=self.logfile,
             tee=tee_path,
-            terminal_exec_start="{terminal_exec_echo} \x1b[42m[terminal_exec_start]\x1b[0m && {terminal_exec_echo}",
-            terminal_exec_stop="{terminal_exec_echo} \x1b[41m[terminal_exec_stop]\x1b[0m && {terminal_exec_echo}",
+            log=self.logfile,
         )
 
         if sublime.platform() == "windows":
@@ -97,9 +84,6 @@ class Terminal():
             # with the correct escaping the startupinfo flag is used for hiding
             # the console window
 
-            shell_cmd = shell_cmd.format(
-                terminal_exec_echo="\"{}\"".format(os.path.join(os.path.dirname(os.path.abspath(__file__)), "echo.bat"))
-            )
             shell_cmd = "{} & pause && exit".format(shell_cmd)
             terminal_cmd = "start /wait cmd /k \"{}\"".format(shell_cmd)
             terminal_settings = {
@@ -112,7 +96,6 @@ class Terminal():
             # Use a login shell on OSX, otherwise the users expected
             # env vars won't be setup
 
-            shell_cmd = shell_cmd.format(terminal_exec_echo="echo & echo")
             shell_cmd = "{}; echo && echo Press ENTER to continue && read && exit".format(shell_cmd)
             terminal_cmd = [
                 "/usr/bin/env",
@@ -131,7 +114,6 @@ class Terminal():
             # similar as possible. A login shell is explicitly not used for
             # linux, as it's not required
 
-            shell_cmd = shell_cmd.format(terminal_exec_echo="echo & echo")
             shell_cmd = "{}; echo && echo Press ENTER to continue && read && exit".format(shell_cmd)
             terminal_cmd = [
                 "/usr/bin/env",
