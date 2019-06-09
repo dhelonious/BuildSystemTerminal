@@ -84,7 +84,7 @@ class Terminal():
         if not os.path.exists(self.logfile):
             open(self.logfile, "a").close()
 
-        shell_cmd = "{{terminal_exec_echo}} {start} && {cmd} && {{terminal_exec_echo}} {end} || {{terminal_exec_echo}} {error}".format(
+        shell_cmd = "{{terminal_exec_echo}} {start} && ({cmd} && {{terminal_exec_echo}} {end} || {{terminal_exec_echo}} {error})".format(
             cmd=cmd,
             start="\x1b[42m{}\x1b[0m".format(self.indicators.start),
             end="\x1b[42m{}\x1b[0m".format(self.indicators.end),
