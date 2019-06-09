@@ -47,7 +47,7 @@ class TerminalProcessListener():
 
 TerminalIndicators = collections.namedtuple(
     "TerminalIndicators",
-    ["start", "end", "error", "cache"]
+    ["start", "end"]
 )
 
 
@@ -67,8 +67,6 @@ class Terminal():
         self.indicators = TerminalIndicators(
             "[terminal_exec_start]",
             "[terminal_exec_end]",
-            "[terminal_exec_error]",
-            "[terminal_exec_cache]",
         )
 
         # Remove log file if its already exists
@@ -84,19 +82,14 @@ class Terminal():
         if not os.path.exists(self.logfile):
             open(self.logfile, "a").close()
 
-        shell_cmd = "{{terminal_exec_echo}} {start} && ({cmd} && {{terminal_exec_echo}} {end} || {{terminal_exec_echo}} {error})".format(
-            cmd=cmd,
-            start="\x1b[42m{}\x1b[0m".format(self.indicators.start),
-            end="\x1b[42m{}\x1b[0m".format(self.indicators.end),
-            error="\x1b[41m{}\x1b[0m".format(self.indicators.error),
-        )
-
         settings = sublime.load_settings("BuildSystemTerminal.sublime-settings")
         tee_path = settings.get("tee")[sublime.platform()]
-        shell_cmd = "{cmd} 2>&1 | {tee} \"{log}\"".format(
-            cmd=shell_cmd,
+        shell_cmd = "{terminal_exec_start} && ({cmd} 2>&1 | {tee} \"{log}\") && {terminal_exec_stop}".format(
+            cmd=cmd,
             log=self.logfile,
             tee=tee_path,
+            terminal_exec_start="{terminal_exec_echo} \x1b[42m[terminal_exec_start]\x1b[0m && {terminal_exec_echo}",
+            terminal_exec_stop="{terminal_exec_echo} \x1b[41m[terminal_exec_stop]\x1b[0m && {terminal_exec_echo}",
         )
 
         if sublime.platform() == "windows":
@@ -180,7 +173,6 @@ class Terminal():
             try:
                 os.remove(self.logfile)
             except PermissionError:
-                # print("{} Files in cache could not be cleared. They might be used by another process.".format(self.indicators.cache))
                 pass
 
     @property
@@ -199,9 +191,6 @@ class Terminal():
                     if not line:
                         time.sleep(.1)
                         continue
-                    elif any([term in line for term in (self.indicators.end, self.indicators.error)]):
-                        yield None
-                        break
 
                     yield line
 
@@ -249,10 +238,8 @@ class AsyncTerminalProcess():
             if data:
                 if self.listener:
                     self.listener.on_data(self, data)
-            else:
-                if self.listener:
-                    self.listener.on_finished(self)
-                break
+        if self.listener:
+            self.listener.on_finished(self)
 
 
 class TerminalExecCommand(sublime_plugin.WindowCommand, TerminalProcessListener):
