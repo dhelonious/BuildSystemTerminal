@@ -21,13 +21,22 @@ With BuildSystemInput you can use the additional boolean key `"prompt"` in you b
 This package requires `tee`, which is a default Unix command. A port for Windows can be found [here](http://gnuwin32.sourceforge.net/packages/coreutils.htm). Don't forget to add the executable path (default: `C:\Program Files (x86)\GnuWin32\bin`) to your Windows environment variable `Path`. Alternatively you can specify the path for tee in the package user settings:
 
 ```json
-{
     "tee": {
         "linux": "/usr/bin/tee",
         "osx": "/usr/bin/tee",
         "windows": "C:\\Program Files (x86)\\GnuWin32\\bin"
     }
-}
+```
+
+## Settings
+
+To specify the geometry of the terminal window, you can add definitions for the number of columns and lines to your user settings:
+
+```json
+    "geometry": {
+        "columns": 80,
+        "lines": 20
+    }
 ```
 
 ## Example

@@ -73,11 +73,15 @@ class Terminal():
 
         settings = sublime.load_settings("BuildSystemTerminal.sublime-settings")
         tee_path = settings.get("tee")[sublime.platform()]
+
         shell_cmd = "{cmd} 2>&1 | {tee} \"{log}\"".format(
             cmd=cmd,
             tee=tee_path,
             log=self.logfile,
         )
+
+        window_geometry = settings.get("geometry")
+        set_geometry = ""
 
         if sublime.platform() == "windows":
             # Use shell=True on Windows, so shell_cmd is passed through
@@ -85,7 +89,23 @@ class Terminal():
             # the console window
 
             shell_cmd = "{} & pause && exit".format(shell_cmd)
-            terminal_cmd = "start /wait cmd /k \"{}\"".format(shell_cmd)
+            if window_geometry:
+                set_geometry = "mode con:cols={} lines={} &".format(
+                    window_geometry["columns"],
+                    window_geometry["lines"],
+                )
+
+            # TODO: Change buffer size with powershell command?
+
+            # powershell -command "& {$H=get-host; $W=$H.ui.rawui; $B=$W.buffersize; $B.width=%3; $B.height=%4; $W.buffersize=$B;}"
+            # https://stackoverflow.com/questions/13311924/cmd-set-buffer-height-independently-of-window-height
+
+            # powershell -command "& {$pshost=Get-Host; $pswindow=$pshost.UI.RawUI; $newsize=$pswindow.BufferSize; $newsize.height=150; $pswindow.buffersize=$newsize;}"
+            # https://stackoverflow.com/questions/4692673/how-to-change-screen-buffer-size-in-windows-command-prompt-from-batch-script
+
+            # TODO: Suppress output with `>nul`?
+
+            terminal_cmd = "start /wait cmd /k \"{} {}\"".format(set_geometry, shell_cmd)
             terminal_settings = {
                 "startupinfo": subprocess.STARTUPINFO(),
                 "shell": True,
@@ -97,12 +117,18 @@ class Terminal():
             # env vars won't be setup
 
             shell_cmd = "{}; echo && echo Press ENTER to continue && read && exit".format(shell_cmd)
+            if window_geometry:
+                set_geometry = "-geometry {}x{}".format(
+                    window_geometry["columns"],
+                    window_geometry["lines"],
+                )
+
             terminal_cmd = [
                 "/usr/bin/env",
                 "bash",
                 "-l",
                 "-c",
-                "xterm -e \"{}; read\"".format(shell_cmd)
+                "xterm {} -e \"{}; read\"".format(set_geometry, shell_cmd)
             ]
             terminal_settings = {
                 "preexec_fn": os.setsid,
@@ -115,11 +141,17 @@ class Terminal():
             # linux, as it's not required
 
             shell_cmd = "{}; echo && echo Press ENTER to continue && read && exit".format(shell_cmd)
+            if window_geometry:
+                set_geometry = "-geometry {}x{}".format(
+                    window_geometry["columns"],
+                    window_geometry["lines"],
+                )
+
             terminal_cmd = [
                 "/usr/bin/env",
                 "bash",
                 "-c",
-                "xterm -e \"{}; read\"".format(shell_cmd)
+                "xterm {} -e \"{}; read\"".format(set_geometry, shell_cmd)
             ]
             terminal_settings = {
                 "preexec_fn": os.setsid,
@@ -180,9 +212,10 @@ class Terminal():
 
 
 class AsyncTerminalProcess():
-    """
-    Encapsulates subprocess.Popen, forwarding stdout to a supplied
-    TerminalProcessListener (on a separate thread)
+    """Encapsulates subprocess.Popen
+
+    Forwarding of stdout to a supplied TerminalProcessListener (on a separate
+    thread).
     """
 
     def __init__(self, cmd, env, listener, path=""):

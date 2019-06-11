@@ -4,4 +4,8 @@
         "windows": "tee",
         "osx": "tee"
     }
+    // "geometry": {
+    //     "columns": 80,
+    //     "lines": 20
+    // }
 }
