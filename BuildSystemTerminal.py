@@ -105,9 +105,9 @@ class Terminal():
             }
             terminal_settings["startupinfo"].dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
-        elif sublime.platform() == "osx":
-            # Use a login shell on OSX, otherwise the users expected
-            # env vars won't be setup
+        else:
+            # Explicitly use /bin/bash on Unix. On OSX a login shell is used,
+            # since the users expected env vars won't be setup otherwise.
 
             shell_cmd = "{}; echo && echo Press ENTER to continue && read && exit".format(shell_cmd)
             if window_geometry:
@@ -119,30 +119,7 @@ class Terminal():
             terminal_cmd = [
                 "/usr/bin/env",
                 "bash",
-                "-l",
-                "-c",
-                "xterm {} -e \"{}; read\"".format(set_geometry, shell_cmd)
-            ]
-            terminal_settings = {
-                "preexec_fn": os.setsid,
-                "shell": False,
-            }
-
-        elif sublime.platform() == "linux":
-            # Explicitly use /bin/bash on Linux, to keep Linux and OSX as
-            # similar as possible. A login shell is explicitly not used for
-            # linux, as it's not required
-
-            shell_cmd = "{}; echo && echo Press ENTER to continue && read && exit".format(shell_cmd)
-            if window_geometry:
-                set_geometry = "-geometry {}x{}".format(
-                    window_geometry["columns"],
-                    window_geometry["lines"],
-                )
-
-            terminal_cmd = [
-                "/usr/bin/env",
-                "bash",
+                "-l" if sublime.platform() == "osx" else "",
                 "-c",
                 "xterm {} -e \"{}; read\"".format(set_geometry, shell_cmd)
             ]
