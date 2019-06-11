@@ -1,8 +1,9 @@
 {
+    "syntax": true,
     "tee": {
         "linux": "tee",
-        "windows": "$packages/BuildSystemTerminal/tee.exe",
-        "osx": "tee"
+        "osx": "tee",
+        "windows": "$packages/BuildSystemTerminal/tee.exe"
     }
     // "geometry": {
     //     "columns": 80,

@@ -1,0 +1,41 @@
+%YAML 1.2
+---
+name: Console
+scope: source.console
+
+contexts:
+  main:
+    - match: '^(\[Finished in [0-9\.]*\]$)'
+      scope: message.success.console
+    - match: '^(\[Finished in [0-9\.]* with [0-9]* errors\]$)'
+      scope: message.error.console
+    - match: '^\[((cmd|dir|path):)'
+      push:
+        - meta_content_scope: constant.other.console
+        - meta_scope: keyword.other.console
+        - match: \]$
+          pop: true
+
+    - match: '([-_.a-zA-Z][-_.\w]*)?/([-_.\w][-_.\w ]*/)+([-_.\w][-_.\w ]*)?'
+      scope: constant.other.console
+    - match: '([-_.a-zA-Z][:-_.\w]*)?\\([-_.\w][-_.\w ]*\\)+([-_.\w][-_.\w ]*)?'
+      scope: constant.other.console
+
+    - match: ("[^"]*")
+      scope: string.console
+    - match: ('[^']*')
+      scope: string.console
+    - match: (`[^']*')
+      scope: string.console
+
+    - match: '(([A-Za-z]*)?(Error|error|ERROR))'
+      scope: message.error.console
+    - match: '(([A-Za-z]*)?(Warning|warning|WARNING))'
+      scope: message.warning.console
+
+    - match: '(\\x[0-9A-F]{2})|(\\[0-7]{3})|(\\\n)|(\\\\)|(\\\")|(\\'')|(\\a)|(\\b)|(\\f)|(\\n)|(\\r)|(\\t)|(\\v)'
+      scope: support.console
+    - match: '(\\U[0-9A-Fa-f]{8})|(\\u[0-9A-Fa-f]{4})|(\\N\{[a-zA-Z ]+\})'
+      scope: support.console
+    - match: (\\)(.*)$\n?
+      scope: support.console

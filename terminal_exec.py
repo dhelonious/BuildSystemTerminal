@@ -299,7 +299,12 @@ class TerminalExecCommand(sublime_plugin.WindowCommand, TerminalProcessListener)
         self.output_view.settings().set("line_numbers", False)
         self.output_view.settings().set("gutter", False)
         self.output_view.settings().set("scroll_past_end", False)
-        self.output_view.assign_syntax(syntax)
+
+        settings = sublime.load_settings("BuildSystemTerminal.sublime-settings")
+        self.output_view.assign_syntax(
+            "Packages/BuildSystemTerminal/Console.sublime-syntax"
+            if settings.get("syntax") else syntax
+        )
 
         # Call create_output_panel a second time after assigning the above
         # settings, so that it'll be picked up as a result buffer
