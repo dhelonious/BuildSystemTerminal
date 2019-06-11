@@ -90,20 +90,10 @@ class Terminal():
 
             shell_cmd = "{} & pause && exit".format(shell_cmd)
             if window_geometry:
-                set_geometry = "mode con:cols={} lines={} &".format(
+                set_geometry = "powershell -command \"[console]::WindowWidth={}; [console]::WindowHeight={}; [console]::BufferWidth=[console]::WindowWidth\" &".format(
                     window_geometry["columns"],
                     window_geometry["lines"],
                 )
-
-            # TODO: Change buffer size with powershell command?
-
-            # powershell -command "& {$H=get-host; $W=$H.ui.rawui; $B=$W.buffersize; $B.width=%3; $B.height=%4; $W.buffersize=$B;}"
-            # https://stackoverflow.com/questions/13311924/cmd-set-buffer-height-independently-of-window-height
-
-            # powershell -command "& {$pshost=Get-Host; $pswindow=$pshost.UI.RawUI; $newsize=$pswindow.BufferSize; $newsize.height=150; $pswindow.buffersize=$newsize;}"
-            # https://stackoverflow.com/questions/4692673/how-to-change-screen-buffer-size-in-windows-command-prompt-from-batch-script
-
-            # TODO: Suppress output with `>nul`?
 
             terminal_cmd = "start /wait cmd /k \"{} {}\"".format(set_geometry, shell_cmd)
             terminal_settings = {
