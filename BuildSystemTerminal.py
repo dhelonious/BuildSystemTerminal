@@ -72,9 +72,12 @@ class Terminal():
             open(self.logfile, "a").close()
 
         settings = sublime.load_settings("BuildSystemTerminal.sublime-settings")
-        tee_path = settings.get("tee")[sublime.platform()]
+        tee_path = sublime.expand_variables(
+            settings.get("tee")[sublime.platform()],
+            {"packages": sublime.packages_path()},
+        )
 
-        shell_cmd = "{cmd} 2>&1 | {tee} \"{log}\"".format(
+        shell_cmd = "{cmd} 2>&1 | \"{tee}\" \"{log}\"".format(
             cmd=cmd,
             tee=tee_path,
             log=self.logfile,

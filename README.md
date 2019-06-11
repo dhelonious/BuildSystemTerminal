@@ -18,19 +18,21 @@ With BuildSystemInput you can use the additional boolean key `"prompt"` in you b
 
 ## Requirements
 
-This package requires `tee`, which is a default Unix command. A port for Windows can be found [here](http://gnuwin32.sourceforge.net/packages/coreutils.htm). Don't forget to add the executable path (default: `C:\Program Files (x86)\GnuWin32\bin`) to your Windows environment variable `Path`. Alternatively you can specify the path for tee in the package user settings:
+This package requires `tee`, which is a default Unix command. A port for Windows is included, which was taken from [here](http://gnuwin32.sourceforge.net/packages/coreutils.htm). You can also customize the path for tee in the package user settings:
 
 ```json
     "tee": {
         "linux": "/usr/bin/tee",
         "osx": "/usr/bin/tee",
-        "windows": "C:\\Program Files (x86)\\GnuWin32\\bin"
+        "windows": "C:\\Program Files (x86)\\GnuWin32\\bin\\tee.exe"
     }
 ```
 
+**Note:** Powershell seems to be a destined choice for Windows, since it has a built-in `tee` command. However, there are several issues with Powershell right now, which makes it unsuitable for the purpose of this package, though, it is used implicitly for setting the terminal geometry correctly.
+
 ## Settings
 
-To specify the geometry of the terminal window, you can add definitions for the number of columns and lines to your user settings:
+The path settings for `tee` was already described above. To specify the geometry of the terminal window, you can add definitions for the number of columns and lines to your user settings:
 
 ```json
     "geometry": {
@@ -45,16 +47,19 @@ Basic Python build system:
 ```json
     {
         "name": "Python Terminal",
-        "target": "terminal_exec",
         "selector": "source.python",
+        "target": "terminal_exec",
         "cmd": ["python", "$file"],
         "file_regex": "^\\s*File \"(...*?)\", line ([0-9]*)",
-        "prompt": false,
         "variants":
         [
             {
                 "name": "Cancel",
                 "kill": true
+            },
+            {
+                "name": "Prompt",
+                "prompt": true,
             }
         ]
     }
