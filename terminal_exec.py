@@ -1,24 +1,25 @@
 import collections
-import functools
-import html
 import os
 import shutil
 import subprocess
 import threading
 import time
 import signal
+import importlib
 
 import sublime
 import sublime_plugin
 
+DefaultExec = importlib.import_module("Default.exec")
 
-LOGPATH = os.path.abspath(os.path.join(sublime.cache_path(), "BuildSystemTerminal"))
+
+CACHE_PATH = os.path.abspath(os.path.join(sublime.cache_path(), "BuildSystemTerminal"))
 
 
 def plugin_loaded():
     # Create log path if it does not exist
-    if not os.path.exists(LOGPATH):
-        os.mkdir(LOGPATH)
+    if not os.path.exists(CACHE_PATH):
+        os.mkdir(CACHE_PATH)
 
 def log(msg):
     print("[BuildSystemTerminal] {}".format(msg))
@@ -37,14 +38,6 @@ def cmd_string(cmd):
     return " ".join(shell_cmd)
 
 
-class TerminalProcessListener():
-    def on_data(self, proc, data):
-        pass
-
-    def on_finished(self, proc):
-        pass
-
-
 class Terminal():
     def __init__(self, env, encoding="utf-8"):
         self.proc = None
@@ -56,7 +49,7 @@ class Terminal():
             self.env[key] = os.path.expandvars(value)
 
         # TODO: Use hashing for multiple files
-        self.logfile = os.path.join(LOGPATH, "terminal_exec.log")
+        self.logfile = os.path.join(CACHE_PATH, "terminal_exec.log")
 
         # Remove log file if its already exists
         if os.path.exists(self.logfile):
@@ -226,7 +219,7 @@ class AsyncTerminalProcess():
             self.listener.on_finished(self)
 
 
-class TerminalExecCommand(sublime_plugin.WindowCommand, TerminalProcessListener):
+class TerminalExecCommand(DefaultExec.ExecCommand):
     BLOCK_SIZE = 2**14
     text_queue = collections.deque()
     text_queue_proc = None
@@ -368,72 +361,7 @@ class TerminalExecCommand(sublime_plugin.WindowCommand, TerminalProcessListener)
             if not self.quiet:
                 self.append_string(None, "[Finished]")
 
-    def is_enabled(self, kill=False, **kwargs):
-        if kill:
-            return (self.proc is not None) and self.proc.poll()
-        else:
-            return True
-
-    def append_string(self, proc, string):
-        was_empty = False
-        with self.text_queue_lock:
-            if proc != self.text_queue_proc and proc:
-                # a second call to exec has been made before the first one
-                # finished, ignore it instead of intermingling the output.
-                proc.kill()
-                return
-
-            if len(self.text_queue) == 0:
-                was_empty = True
-                self.text_queue.append("")
-
-            available = self.BLOCK_SIZE - len(self.text_queue[-1])
-
-            if len(string) < available:
-                cur = self.text_queue.pop()
-                self.text_queue.append(cur + string)
-            else:
-                self.text_queue.append(string)
-
-        if was_empty:
-            sublime.set_timeout(self.service_text_queue, 0)
-
-    def service_text_queue(self):
-        is_empty = False
-        with self.text_queue_lock:
-            if len(self.text_queue) == 0:
-                # this can happen if a new build was started, which will clear
-                # the text_queue
-                return
-
-            characters = self.text_queue.popleft()
-            is_empty = (len(self.text_queue) == 0)
-
-        self.output_view.run_command(
-            "append",
-            {
-                "characters": characters,
-                "force": True,
-                "scroll_to_end": True,
-            }
-        )
-
-        if self.show_errors_inline and characters.find("\n") >= 0:
-            errs = self.output_view.find_all_results_with_text()
-            errs_by_file = {}
-            for file, line, column, text in errs:
-                if file not in errs_by_file:
-                    errs_by_file[file] = []
-                errs_by_file[file].append((line, column, text))
-            self.errs_by_file = errs_by_file
-
-            self.update_phantoms()
-
-        if not is_empty:
-            sublime.set_timeout(self.service_text_queue, 1)
-
     def finish(self, proc):
-
         if proc != self.proc:
             return
 
@@ -449,96 +377,8 @@ class TerminalExecCommand(sublime_plugin.WindowCommand, TerminalProcessListener)
                 self.append_string(proc, "[Finished in {:.1f} with {} errors]\n".format(elapsed, len(errs)))
                 self.append_string(proc, self.debug_text)
 
-    def on_data(self, proc, data):
-        # Normalize newlines, Sublime Text always uses a single \n separator
-        # in memory.
-        data = data.replace("\r\n", "\n").replace("\r", "\n")
 
-        self.append_string(proc, data)
-
-    def on_finished(self, proc):
-        sublime.set_timeout(functools.partial(self.finish, proc), 0)
-
-    def update_phantoms(self):
-        stylesheet = """
-            <style>
-                div.error-arrow {
-                    border-top: 0.4rem solid transparent;
-                    border-left: 0.5rem solid color(var(--redish) blend(var(--background) 30%));
-                    width: 0;
-                    height: 0;
-                }
-                div.error {
-                    padding: 0.4rem 0 0.4rem 0.7rem;
-                    margin: 0 0 0.2rem;
-                    border-radius: 0 0.2rem 0.2rem 0.2rem;
-                }
-
-                div.error span.message {
-                    padding-right: 0.7rem;
-                }
-
-                div.error a {
-                    text-decoration: inherit;
-                    padding: 0.35rem 0.7rem 0.45rem 0.8rem;
-                    position: relative;
-                    bottom: 0.05rem;
-                    border-radius: 0 0.2rem 0.2rem 0;
-                    font-weight: bold;
-                }
-                html.dark div.error a {
-                    background-color: #00000018;
-                }
-                html.light div.error a {
-                    background-color: #ffffff18;
-                }
-            </style>
-        """
-
-        for file, errs in self.errs_by_file.items():
-            view = self.window.find_open_file(file)
-            if view:
-
-                buffer_id = view.buffer_id()
-                if buffer_id not in self.phantom_sets_by_buffer:
-                    phantom_set = sublime.PhantomSet(view, "exec")
-                    self.phantom_sets_by_buffer[buffer_id] = phantom_set
-                else:
-                    phantom_set = self.phantom_sets_by_buffer[buffer_id]
-
-                phantoms = []
-
-                for line, column, text in errs:
-                    pt = view.text_point(line - 1, column - 1)
-                    phantoms.append(sublime.Phantom(
-                        sublime.Region(pt, view.line(pt).b),
-                        """<body id=inline-error>{}
-                               <div class=\"error-arrow\"></div><div class=\"error\">
-                                   <span class=\"message\">{}</span>
-                                   <a href=hide>{}</a>
-                               </div>
-                           </body>""".format(stylesheet, html.escape(text, quote=False), chr(0x00D7)),
-                        sublime.LAYOUT_BELOW,
-                        on_navigate=self._on_phantom_navigate
-                    ))
-
-                phantom_set.update(phantoms)
-
-    def hide_phantoms(self):
-        for file, _ in self.errs_by_file.items():
-            view = self.window.find_open_file(file)
-            if view:
-                view.erase_phantoms("exec")
-
-        self.errs_by_file = {}
-        self.phantom_sets_by_buffer = {}
-        self.show_errors_inline = False
-
-    def _on_phantom_navigate(self, url):
-        self.hide_phantoms()
-
-
-class TerminalExecEventListener(sublime_plugin.EventListener):
+class TerminalExecEventListener(DefaultExec.ExecEventListener):
     def on_load(self, view):
         w = view.window()
         if w is not None:
@@ -548,7 +388,7 @@ class TerminalExecEventListener(sublime_plugin.EventListener):
 class ClearTerminalExecCacheCommand(sublime_plugin.WindowCommand):
     def run(self):
         try:
-            shutil.rmtree(LOGPATH)
+            shutil.rmtree(CACHE_PATH)
             log("Cache cleared")
         except Exception as e:
             log(e)
