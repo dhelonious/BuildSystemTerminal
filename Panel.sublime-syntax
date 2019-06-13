@@ -1,6 +1,6 @@
 %YAML 1.2
 ---
-name: Console
+name: Build Results Panel
 scope: source.console
 
 contexts:

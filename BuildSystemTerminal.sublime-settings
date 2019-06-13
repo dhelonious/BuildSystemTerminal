@@ -1,13 +1,14 @@
 {
-    "syntax": true,
     "show_panel_on_build": false,
     "hide_panel_without_errors": true,
-    "tee": {
+    "panel_highlighting": true,
+    "keep_terminal_open": false,
+    "tee_path": {
         "linux": "tee",
         "osx": "tee",
         "windows": "$packages/BuildSystemTerminal/tee.exe"
     }
-    // "geometry": {
+    // "terminal_geometry": {
     //     "columns": 80,
     //     "lines": 20
     // }
