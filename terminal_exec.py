@@ -246,6 +246,7 @@ class TerminalExecCommand(DefaultExec.ExecCommand):
             hide_phantoms_only=False,
             word_wrap=True,
             syntax="Packages/Text/Plain text.tmLanguage",
+            show_panel_on_build=False,
             prompt=False,
             # Catches "path" and "shell"
             **kwargs):
@@ -310,6 +311,9 @@ class TerminalExecCommand(DefaultExec.ExecCommand):
             print("Running {}".format(cmd_string(cmd) if cmd else shell_cmd))
             sublime.status_message("Building")
 
+        if show_panel_on_build or settings.get("show_panel_on_build"):
+            self.window.run_command("show_panel", {"panel": "output.exec"})
+
         self.hide_phantoms()
         self.show_errors_inline = sublime.load_settings("Preferences.sublime-settings").get("show_errors_inline", True)
 
@@ -371,6 +375,8 @@ class TerminalExecCommand(DefaultExec.ExecCommand):
             sublime.status_message("Build finished")
             if not self.quiet:
                 self.append_string(proc, "[Finished in {:.1f}]".format(elapsed))
+            if sublime.load_settings("BuildSystemTerminal.sublime-settings").get("hide_panel_without_errors"):
+                self.window.run_command("hide_panel", {"panel": "output.exec"})
         else:
             sublime.status_message("Build finished with {} errors".format(len(errs)))
             if not self.quiet:

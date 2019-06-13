@@ -1,5 +1,7 @@
 {
     "syntax": true,
+    "show_panel_on_build": false,
+    "hide_panel_without_errors": true,
     "tee": {
         "linux": "tee",
         "osx": "tee",

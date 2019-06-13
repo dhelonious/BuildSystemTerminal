@@ -6,7 +6,7 @@ Simply choose the `"terminal_exec"` target in any build system. The command will
 * `xterm` (Unix)
 * `cmd` (Windows)
 
-In addition the output will be put into the default Build Results panel and errors are shown inline. To cancel any terminal build system use `Terminal Build: Cancel`.
+In addition the output will be put into the default Build Results panel and errors are shown in-line. To cancel any terminal build system use `Terminal Build: Cancel`.
 
 This build system is a modification of the default Sublime Text 3 `exec.py` script. However, in contrast to the default build system script no information about the exit code of the command can be obtained.
 
@@ -14,13 +14,15 @@ The transfer of the output of the command from the terminal back to Sublime Text
 
 ## Features
 
-### Syntax highlighting
+### Build Results panel
 
-BuildSystemTerminal provides some basic syntax highlighting for the Build Results panel. Most of the scopes being used should be defined in any color scheme. However, some special syntax scopes are used:
+BuildSystemTerminal provides some basic syntax highlighting for the Build Results panel. Most of the scopes being used should be defined in any colour scheme. However, some special syntax scopes are used:
 * `message.success.console`
 * `message.error.console`
 
 This feature can be disabled with the boolean key `"syntax"` in the user settings.
+
+Note that the Build Results panel is hidden by default. You can enable it by setting `"show_panel_on_build"` either in your user settings file or directly in the build system definition. If no errors occur the Build Results panel is closed when the terminal is closed. Use `"hide_panel_without_errors"` to change this behaviour.
 
 ### Input prompt
 
@@ -69,7 +71,11 @@ Basic Python build system:
             },
             {
                 "name": "Prompt",
-                "prompt": true,
+                "prompt": true
+            },
+            {
+                "name": "Show Panel on Build",
+                "show_panel_on_build": true
             }
         ]
     }
