@@ -118,8 +118,7 @@ class Terminal():
 
             terminal_cmd = [
                 "/usr/bin/env",
-                "bash",
-                "-l" if sublime.platform() == "osx" else "",
+                "bash -l" if sublime.platform() == "osx" else "bash",
                 "-c",
                 "xterm {} -e \"{}; read\"".format(set_geometry, shell_cmd)
             ]
