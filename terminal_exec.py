@@ -66,7 +66,7 @@ class Terminal():
 
         settings = sublime.load_settings("BuildSystemTerminal.sublime-settings")
         tee_path = sublime.expand_variables(
-            settings.get("tee")[sublime.platform()],
+            settings.get("tee_path")[sublime.platform()],
             {"packages": sublime.packages_path()},
         )
 
@@ -76,22 +76,26 @@ class Terminal():
             log=self.logfile,
         )
 
-        window_geometry = settings.get("geometry")
-        set_geometry = ""
+        terminal_geometry = settings.get("terminal_geometry")
 
         if sublime.platform() == "windows":
             # Use shell=True on Windows, so shell_cmd is passed through
             # with the correct escaping the startupinfo flag is used for hiding
             # the console window
 
-            shell_cmd = "{} & pause && exit".format(shell_cmd)
-            if window_geometry:
-                set_geometry = "powershell -command \"[console]::WindowWidth={}; [console]::WindowHeight={}; [console]::BufferWidth=[console]::WindowWidth\" &".format(
-                    window_geometry["columns"],
-                    window_geometry["lines"],
+            shell_cmd = "{} & {}".format(
+                shell_cmd,
+                "waitfor exit" if settings.get("keep_terminal_open") else "pause && exit",
+            )
+            if terminal_geometry:
+                shell_cmd = "powershell -command \"[console]::WindowWidth={cols}; [console]::WindowHeight={rows}; [console]::BufferWidth=[console]::WindowWidth\" & {cmd}".format(
+                    cmd=shell_cmd,
+                    rows=terminal_geometry["lines"],
+                    cols=terminal_geometry["columns"],
                 )
 
-            terminal_cmd = "start /wait cmd /k \"{} {}\"".format(set_geometry, shell_cmd)
+            terminal = "cmd"
+            terminal_cmd = "start /wait {term} /k \"{cmd}\"".format(term=terminal, cmd=shell_cmd)
             terminal_settings = {
                 "startupinfo": subprocess.STARTUPINFO(),
                 "shell": True,
@@ -102,18 +106,23 @@ class Terminal():
             # Explicitly use /bin/bash on Unix. On OSX a login shell is used,
             # since the users expected env vars won't be setup otherwise.
 
-            shell_cmd = "{}; echo && echo Press ENTER to continue && read && exit".format(shell_cmd)
-            if window_geometry:
-                set_geometry = "-geometry {}x{}".format(
-                    window_geometry["columns"],
-                    window_geometry["lines"],
-                )
+            shell_cmd = "{}; {}".format(
+                shell_cmd,
+                "sleep infinity" if settings.get("keep_terminal_open") else "echo && echo Press ENTER to continue && read && exit"
+            )
 
+            terminal = "xterm"
+            if terminal_geometry:
+                terminal = "{term} -geometry {cols}x{rows}".format(
+                    term=terminal,
+                    rows=terminal_geometry["lines"],
+                    cols=terminal_geometry["columns"],
+                )
             terminal_cmd = [
                 "/usr/bin/env",
                 "bash -l" if sublime.platform() == "osx" else "bash",
                 "-c",
-                "xterm {} -e \"{}; read\"".format(set_geometry, shell_cmd)
+                "{term} -e \"{cmd}; read\"".format(term=terminal, cmd=shell_cmd)
             ]
             terminal_settings = {
                 "preexec_fn": os.setsid,
