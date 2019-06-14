@@ -5,22 +5,27 @@ import subprocess
 import threading
 import time
 import signal
+import hashlib
+import datetime
 
 import sublime
 import sublime_plugin
 import Default
 
 
-CACHE_PATH = os.path.abspath(os.path.join(sublime.cache_path(), "BuildSystemTerminal"))
-
-
-def plugin_loaded():
-    # Create log path if it does not exist
-    if not os.path.exists(CACHE_PATH):
-        os.mkdir(CACHE_PATH)
-
 def log(msg):
     print("[BuildSystemTerminal] {}".format(msg))
+
+def clear(folder):
+    for _file in os.listdir(folder):
+        file_path = os.path.join(folder, _file)
+        try:
+            if os.path.isfile(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+        except Exception as e:
+            log(e)
 
 def cmd_string(cmd):
     if isinstance(cmd, str):
@@ -35,9 +40,18 @@ def cmd_string(cmd):
 
     return " ".join(shell_cmd)
 
+def plugin_loaded():
+    global CACHE_PATH
+
+    CACHE_PATH = os.path.abspath(os.path.join(sublime.cache_path(), "BuildSystemTerminal"))
+
+    # Create log path if it does not exist
+    if not os.path.exists(CACHE_PATH):
+        os.mkdir(CACHE_PATH)
+
 
 class Terminal():
-    def __init__(self, env, encoding="utf-8"):
+    def __init__(self, env, encoding="utf-8", cache_path=sublime.cache_path()):
         self.proc = None
         self.encoding = encoding
 
@@ -46,17 +60,17 @@ class Terminal():
         for key, value in self.env.items():
             self.env[key] = os.path.expandvars(value)
 
-        # TODO: Use hashing for multiple files
-        self.logfile = os.path.join(CACHE_PATH, "terminal_exec.log")
-
-        # Remove log file if its already exists
-        if os.path.exists(self.logfile):
-            os.remove(self.logfile)
+        self.cache_path = cache_path
+        self.logfile = ""
 
     def __del__(self):
         self.terminate()
 
     def run(self, cmd):
+
+        hash_cmd = hashlib.sha1(cmd.encode()).hexdigest()
+        date_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S.%f")
+        self.logfile = os.path.join(self.cache_path, "{}_{}.log".format(hash_cmd, date_time))
 
         # Create empty log file
         if not os.path.exists(self.logfile):
@@ -177,7 +191,7 @@ class Terminal():
 
                     yield line
 
-                self.clear_cache()
+            self.clear_cache()
 
 
 class AsyncTerminalProcess():
@@ -200,7 +214,7 @@ class AsyncTerminalProcess():
             # or tuck it at the front: "$PATH;C:\\new\\path", "C:\\new\\path;$PATH"
             os.environ["PATH"] = os.path.expandvars(path)
 
-        self.terminal = Terminal(env, encoding=self.listener.encoding)
+        self.terminal = Terminal(env, encoding=self.listener.encoding, cache_path=CACHE_PATH)
         self.terminal.run(cmd)
 
         if path:
@@ -400,8 +414,5 @@ class TerminalExecEventListener(Default.exec.ExecEventListener):
 
 class ClearTerminalExecCacheCommand(sublime_plugin.WindowCommand):
     def run(self):
-        try:
-            shutil.rmtree(CACHE_PATH)
-            log("Cache cleared")
-        except Exception as e:
-            log(e)
+        clear(CACHE_PATH)
+        log("Cache cleared")

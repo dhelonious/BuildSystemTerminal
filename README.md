@@ -10,7 +10,7 @@ In addition the output will be put into the default Build Results panel and erro
 
 This build system is a modification of the default Sublime Text 3 `exec` script. However, in contrast to the default build system script no information about the exit code of the command can be obtained.
 
-The transfer of the output of the command from the terminal back to Sublime Text 3 has to be done via files. Those temporary files are stored in the Sublime Text 3 cache path and will be deleted after the transfer is complete. Since all build systems use the same file, it should for now be only possible to run one build at the same time. To clear the cache files manually one may use the *Clear Cache* option in the package settings.
+The transfer of the output of the command from the terminal back to Sublime Text 3 has to be done via files. Those temporary files are stored in the Sublime Text 3 cache path and will be deleted after the transfer is complete. To clear the cache files manually one may use the *Clear Cache* option in the package settings.
 
 ## Features
 
