@@ -5,12 +5,10 @@ import subprocess
 import threading
 import time
 import signal
-import importlib
 
 import sublime
 import sublime_plugin
-
-DefaultExec = importlib.import_module("Default.exec")
+import Default
 
 
 CACHE_PATH = os.path.abspath(os.path.join(sublime.cache_path(), "BuildSystemTerminal"))
@@ -228,7 +226,7 @@ class AsyncTerminalProcess():
             self.listener.on_finished(self)
 
 
-class TerminalExecCommand(DefaultExec.ExecCommand):
+class TerminalExecCommand(Default.exec.ExecCommand):
     BLOCK_SIZE = 2**14
     text_queue = collections.deque()
     text_queue_proc = None
@@ -393,7 +391,7 @@ class TerminalExecCommand(DefaultExec.ExecCommand):
                 self.append_string(proc, self.debug_text)
 
 
-class TerminalExecEventListener(DefaultExec.ExecEventListener):
+class TerminalExecEventListener(Default.exec.ExecEventListener):
     def on_load(self, view):
         w = view.window()
         if w is not None:
