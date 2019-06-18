@@ -39,6 +39,18 @@ To specify the geometry of the terminal window, you can add definitions for the 
     }
 ```
 
+## Caveats
+
+### Buffering
+
+If you run any script in the terminal you may find, that there is no output either in the terminal window itself or in the Build Results panel. However, when the script is finished you get all output at once. This is because of [buffering](http://www.pixelbeat.org/programming/stdio_buffering/). Buffering is an issue with which you have to deal if you want to use a terminal. There are hacks and workarounds (e. g. [`unbuffer`](https://linux.die.net/man/1/unbuffer) on Linux) to prevent this issue. However, there is no simple solution working on all platforms. Therefore it is advisable to flush outputs manually in your programs. A simple example of flushing in Python looks like this:
+```python
+print("buffered")
+print("flush buffer", flush=True)
+```
+
+The second line will flush the whole buffer to the terminal and both lines will be shown together.
+
 ## Requirements
 
 This package requires `tee`, which is a default Unix command. A [port for Windows](http://gnuwin32.sourceforge.net/packages/coreutils.htm) is included, which should work without any configuration. The path for tee can also be customized in the package user settings:
