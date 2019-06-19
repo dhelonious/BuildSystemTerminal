@@ -33,34 +33,42 @@ With BuildSystemInput you can use the additional boolean key `"prompt"` in you b
 To specify the geometry of the terminal window, you can add definitions for the number of columns and lines to the user settings:
 
 ```json
-    "terminal_geometry": {
-        "columns": 80,
-        "lines": 20
-    }
+"terminal_geometry": {
+    "columns": 80,
+    "lines": 20
+}
 ```
 
 ## Caveats
 
 ### Buffering
 
-If you run any script in the terminal you may find, that there is no output either in the terminal window itself or in the Build Results panel. However, when the script is finished you get all output at once. This is because of [buffering](http://www.pixelbeat.org/programming/stdio_buffering/). Buffering is an issue with which you have to deal if you want to use a terminal. There are hacks and workarounds (e. g. [`unbuffer`](https://linux.die.net/man/1/unbuffer) on Linux) to prevent this issue. However, there is no simple solution working on all platforms. Therefore it is advisable to flush outputs manually in your programs. A simple example of flushing in Python looks like this:
+If you run any script in the terminal you may find, that there is no output either in the terminal window itself or in the Build Results panel. However, when the script is finished you get all output at once. This is because of [buffering](http://www.pixelbeat.org/programming/stdio_buffering/). Buffering is an issue with which you have to deal if you want to use a terminal. There are hacks and workarounds (e. g. [`unbuffer`](https://linux.die.net/man/1/unbuffer) or [`stdbuf -i0 -o0 -e0`](https://linux.die.net/man/1/stdbuf) on Linux, [`winpty -Xallow-non-tty`](https://github.com/rprichard/winpty/issues/103) or [this workaround](https://gist.github.com/zhangyoufu/be36035e94b8c0dcb1239a3c8b07a3b1) on Windows) to prevent this issue. However, there is no simple solution working on all platforms. Therefore it is advisable to flush outputs manually in your programs. A simple example of flushing in Python looks like this:
 ```python
 print("buffered")
 print("flush buffer", flush=True)
 ```
 
-The second line will flush the whole buffer to the terminal and both lines will be shown together.
+You could also try to unbuffer your script in the command definition like this:
+```json
+"linux": {
+    "cmd": ["unbuffer", "..."]
+},
+"windows": {
+    "cmd": ["winpty.exe", "-Xallow-non-tty", "-Xplain", "..."]
+}
+```
 
 ## Requirements
 
 This package requires `tee`, which is a default Unix command. A [port for Windows](http://gnuwin32.sourceforge.net/packages/coreutils.htm) is included, which should work without any configuration. The path for tee can also be customized in the package user settings:
 
 ```json
-    "tee_path": {
-        "linux": "/usr/bin/tee",
-        "osx": "/usr/bin/tee",
-        "windows": "C:\\Program Files (x86)\\GnuWin32\\bin\\tee.exe"
-    }
+"tee_path": {
+    "linux": "/usr/bin/tee",
+    "osx": "/usr/bin/tee",
+    "windows": "C:\\Program Files (x86)\\GnuWin32\\bin\\tee.exe"
+}
 ```
 
 **Note:** Powershell seems to be a destined choice for Windows, since it has a built-in `tee` command. However, there are several issues with Powershell right now, which makes it unsuitable for the purpose of this package. Though, it is used implicitly for setting the terminal geometry correctly.
@@ -69,26 +77,26 @@ This package requires `tee`, which is a default Unix command. A [port for Window
 
 Basic Python build system:
 ```json
-    {
-        "target": "terminal_exec",
-        "name": "Python Terminal",
-        "selector": "source.python",
-        "cmd": ["python", "$file"],
-        "file_regex": "^\\s*File \"(...*?)\", line ([0-9]*)",
-        "variants":
-        [
-            {
-                "name": "Cancel",
-                "kill": true
-            },
-            {
-                "name": "Prompt",
-                "prompt": true
-            },
-            {
-                "name": "Show Panel on Build",
-                "show_panel_on_build": true
-            }
-        ]
-    }
+{
+    "target": "terminal_exec",
+    "name": "Python Terminal",
+    "selector": "source.python",
+    "cmd": ["python", "$file"],
+    "file_regex": "^\\s*File \"(...*?)\", line ([0-9]*)",
+    "variants":
+    [
+        {
+            "name": "Cancel",
+            "kill": true
+        },
+        {
+            "name": "Prompt",
+            "prompt": true
+        },
+        {
+            "name": "Show Panel on Build",
+            "show_panel_on_build": true
+        }
+    ]
+}
 ```
