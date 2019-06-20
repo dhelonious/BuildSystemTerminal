@@ -5,9 +5,9 @@ scope: source.console
 
 contexts:
   main:
-    - match: '^(\[Finished in [0-9\.]*\]$)'
+    - match: '^(\[Finished in [0-9\.]*s\]$)'
       scope: message.success.console
-    - match: '^(\[Finished in [0-9\.]* with [0-9]* errors\]$)'
+    - match: '^(\[Finished in [0-9\.]*s with [0-9]* errors\]$)'
       scope: message.error.console
     - match: '^\[((cmd|dir|path):)'
       push:

@@ -395,13 +395,13 @@ class TerminalExecCommand(Default.exec.ExecCommand):
         if len(errs) == 0:
             sublime.status_message("Build finished")
             if not self.quiet:
-                self.append_string(proc, "[Finished in {:.1f}]".format(elapsed))
+                self.append_string(proc, "[Finished in {:.1f}s]".format(elapsed))
             if sublime.load_settings("BuildSystemTerminal.sublime-settings").get("hide_panel_without_errors"):
                 self.window.run_command("hide_panel", {"panel": "output.exec"})
         else:
             sublime.status_message("Build finished with {} errors".format(len(errs)))
             if not self.quiet:
-                self.append_string(proc, "[Finished in {:.1f} with {} errors]\n".format(elapsed, len(errs)))
+                self.append_string(proc, "[Finished in {:.1f}s with {} errors]\n".format(elapsed, len(errs)))
                 self.append_string(proc, self.debug_text)
 
 
