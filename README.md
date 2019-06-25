@@ -2,7 +2,11 @@
 
 Run Sublime Text 3 builds in a native terminal instead of the console.
 
-Simply choose the `"terminal_exec"` target in any build system. The command will run in a terminal window which is either:
+You may already know packages like [SublimeREPL](https://github.com/wuub/SublimeREPL) and [Terminus](https://github.com/randy3k/Terminus), which provide integrated-terminal solutions for Sublime Text 3. You can also use such emulated terminals for execution of commands in build systems. In contrast to these packages, however, the focus of this package is to execute commands in a real terminal. In addition, the output of the terminal is processed by Sublime Text 3 to allow for in-line error highlighting.
+
+## Quickstart
+
+After installation, simply choose the `"terminal_exec"` target in any build system. The command will run in a terminal window which is either:
 * `xterm` (Unix)
 * `cmd` (Windows)
 
