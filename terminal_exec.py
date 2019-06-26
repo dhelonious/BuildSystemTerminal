@@ -51,8 +51,9 @@ def plugin_loaded():
 
 
 class Terminal():
-    def __init__(self, env, encoding="utf-8", cache_path=sublime.cache_path()):
+    def __init__(self, env, encoding="utf-8", tee=True, cache_path="."):
         self.proc = None
+        self.tee = tee
         self.encoding = encoding
 
         self.env = os.environ.copy()
@@ -82,11 +83,14 @@ class Terminal():
             {"packages": sublime.packages_path()},
         )
 
-        shell_cmd = "{cmd} 2>&1 | \"{tee}\" \"{log}\"".format(
-            cmd=cmd,
-            tee=tee_path,
-            log=self.logfile,
-        )
+        if self.tee:
+            shell_cmd = "{cmd} 2>&1 | \"{tee}\" \"{log}\"".format(
+                cmd=cmd,
+                tee=tee_path,
+                log=self.logfile,
+            )
+        else:
+            shell_cmd = cmd
 
         terminal_geometry = settings.get("terminal_geometry")
 
@@ -201,7 +205,7 @@ class AsyncTerminalProcess():
     thread).
     """
 
-    def __init__(self, cmd, env, listener, path=""):
+    def __init__(self, cmd, env, listener, path="", tee=True):
 
         self.listener = listener
         self.killed = False
@@ -214,7 +218,7 @@ class AsyncTerminalProcess():
             # or tuck it at the front: "$PATH;C:\\new\\path", "C:\\new\\path;$PATH"
             os.environ["PATH"] = os.path.expandvars(path)
 
-        self.terminal = Terminal(env, encoding=self.listener.encoding, cache_path=CACHE_PATH)
+        self.terminal = Terminal(env, encoding=self.listener.encoding, tee=tee, cache_path=CACHE_PATH)
         self.terminal.run(cmd)
 
         if path:
@@ -269,6 +273,7 @@ class TerminalExecCommand(Default.exec.ExecCommand):
             syntax="Packages/Text/Plain text.tmLanguage",
             show_panel_on_build=False,
             prompt=False,
+            tee=True,
             # Catches "path" and "shell"
             **kwargs):
 
@@ -364,17 +369,17 @@ class TerminalExecCommand(Default.exec.ExecCommand):
             self.window.show_input_panel(
                 "$",
                 cmd_string(cmd) if cmd else shell_cmd,
-                lambda cmd: self._start_process(cmd, merged_env, **kwargs),
+                lambda cmd: self._start_process(cmd, merged_env, tee, **kwargs),
                 None,
                 None
             )
         else:
-            self._start_process(cmd_string(cmd) if cmd else shell_cmd, merged_env, **kwargs)
+            self._start_process(cmd_string(cmd) if cmd else shell_cmd, merged_env, tee, **kwargs)
 
-    def _start_process(self, cmd, env, **kwargs):
+    def _start_process(self, cmd, env, tee, **kwargs):
         try:
             # Forward kwargs to AsyncTerminalProcess
-            self.proc = AsyncTerminalProcess(cmd, env, self, **kwargs)
+            self.proc = AsyncTerminalProcess(cmd, env, self, tee=tee, **kwargs)
 
             with self.text_queue_lock:
                 self.text_queue_proc = self.proc

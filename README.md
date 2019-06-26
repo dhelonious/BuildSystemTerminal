@@ -59,6 +59,8 @@ You could also try to unbuffer your script in the command definition like this:
 }
 ```
 
+If you have any issues with buffering, you may want disable the usage of pipes and tee completely. You can do this by setting the key `"tee"` to false in your build system definition. However, keep in mind that you will lose in-line error highlighting.
+
 ## Requirements
 
 This package requires `tee`, which is a default Unix command. A [port for Windows](http://gnuwin32.sourceforge.net/packages/coreutils.htm) is included, which should work without any configuration. The path for tee can also be customized in the package user settings:
@@ -73,7 +75,7 @@ This package requires `tee`, which is a default Unix command. A [port for Window
 
 **Note:** Powershell seems to be a destined choice for Windows, since it has a built-in `tee` command. However, there are several issues with Powershell right now, which makes it unsuitable for the purpose of this package. Though, it is used implicitly for setting the terminal geometry correctly.
 
-## Example
+## Examples
 
 Basic Python build system:
 ```json
@@ -94,9 +96,42 @@ Basic Python build system:
             "prompt": true
         },
         {
+            "name": "Without Tee",
+            "tee": false,
+        },
+        {
             "name": "Show Panel on Build",
             "show_panel_on_build": true
         }
     ]
 }
 ```
+
+### Alternative to this package
+
+A simple build system with the same basic functionality but without the error processing may look like this:
+```json
+{
+    "name": "Python Terminal",
+    "selector": "source.python",
+    "cmd": ["python", "$file_name"],
+    "file_regex": "^\\s*File \"(...*?)\", line ([0-9]*)",
+    "working_dir": "$file_path",
+    "linux": {
+        "shell_cmd": "xterm -e 'python \"$file_name\"; echo && echo Press ENTER to continue && read line && exit'"
+    },
+    "windows": {
+        "shell_cmd": "start cmd /k \"python \"$file_name\" & pause && exit\""
+    },
+    "osx": {
+        "shell_cmd": "xterm -e 'python \"$file_name\"; echo && echo Press ENTER to continue && read line && exit'"
+    },
+    "shell": true
+}
+```
+
+You can also use other terminals. On Linux the Gnome Terminal is a nice choice:
+```json
+"shell_cmd": "gnome-terminal -e 'bash -c \"python $file_name; echo && echo Press ENTER to continue && read line && exit\"'"
+```
+
