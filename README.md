@@ -26,7 +26,7 @@ Note that the Build Results panel is hidden by default. You can enable it by set
 
 ### Input prompt
 
-With BuildSystemInput you can use the additional boolean key `"prompt"` in you build systems. If set to `true`, an input panel will be shown, where the command can be edited before execution. This allows for great flexibility an can be used for passing additional arguments to the build system command.
+With BuildSystemInput you can use the additional boolean key `"input_prompt"` in you build systems. If set to `true`, an input panel will be shown, where the command can be edited before execution. This allows for great flexibility an can be used for passing additional arguments to the build system command.
 
 ### Terminal geometry
 
@@ -38,6 +38,10 @@ To specify the geometry of the terminal window, you can add definitions for the 
     "lines": 20
 }
 ```
+
+### Terminal exit
+
+When the build is finished the terminal will wait for the user to press enter to exit by default. However, there are situations in which you either want that the terminal closes immediately or remains open until it is manually closed. These three different scenarios can be configured in the package settings or the build system definition using the `"terminal_exit"` key. The setting in the build system definition will overwrite the user settings.
 
 ## Caveats
 
@@ -93,7 +97,7 @@ Basic Python build system:
         },
         {
             "name": "Prompt",
-            "prompt": true
+            "input_prompt": true
         },
         {
             "name": "Without Tee",
@@ -102,6 +106,14 @@ Basic Python build system:
         {
             "name": "Show Panel on Build",
             "show_panel_on_build": true
+        },
+        {
+            "name": "Exit automatically",
+            "terminal_exit": "auto"
+        },
+        {
+            "name": "Exit manually",
+            "terminal_exit": "manual"
         }
     ]
 }

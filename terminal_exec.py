@@ -1,3 +1,6 @@
+# encoding: utf-8
+# pylint: disable=W0201
+
 import collections
 import os
 import shutil
@@ -51,17 +54,18 @@ def plugin_loaded():
 
 
 class Terminal():
-    def __init__(self, env, encoding="utf-8", tee=True, cache_path="."):
-        self.proc = None
-        self.tee = tee
-        self.encoding = encoding
-
+    def __init__(self, env, encoding="utf-8", tee=True, exit_method="prompt", cache_path="."):
         self.env = os.environ.copy()
         self.env.update(env)
         for key, value in self.env.items():
             self.env[key] = os.path.expandvars(value)
 
+        self.encoding = encoding
+        self.tee = tee
+        self.exit_method = exit_method
         self.cache_path = cache_path
+
+        self.proc = None
         self.logfile = ""
 
     def __del__(self):
@@ -84,13 +88,11 @@ class Terminal():
         )
 
         if self.tee:
-            shell_cmd = "{cmd} 2>&1 | \"{tee}\" \"{log}\"".format(
+            cmd = "{cmd} 2>&1 | \"{tee}\" \"{log}\"".format(
                 cmd=cmd,
                 tee=tee_path,
                 log=self.logfile,
             )
-        else:
-            shell_cmd = cmd
 
         terminal_geometry = settings.get("terminal_geometry")
 
@@ -99,19 +101,24 @@ class Terminal():
             # with the correct escaping the startupinfo flag is used for hiding
             # the console window
 
-            shell_cmd = "{} & {}".format(
-                shell_cmd,
-                "waitfor exit" if settings.get("keep_terminal_open") else "pause && exit",
+            cmd = "{cmd} & {exit}".format(
+                cmd=cmd,
+                exit={
+                    "prompt": "pause && exit",
+                    "manual": "waitfor exit",
+                    "auto": "exit",
+                }[self.exit_method]
             )
+
             if terminal_geometry:
-                shell_cmd = "powershell -command \"[console]::WindowWidth={cols}; [console]::WindowHeight={rows}; [console]::BufferWidth=[console]::WindowWidth\" & {cmd}".format(
-                    cmd=shell_cmd,
+                cmd = "powershell -command \"[console]::WindowWidth={cols}; [console]::WindowHeight={rows}; [console]::BufferWidth=[console]::WindowWidth\" & {cmd}".format(
+                    cmd=cmd,
                     rows=terminal_geometry["lines"],
                     cols=terminal_geometry["columns"],
                 )
 
             terminal = "cmd"
-            terminal_cmd = "start /wait {term} /k \"{cmd}\"".format(term=terminal, cmd=shell_cmd)
+            terminal_cmd = "start /wait {term} /k \"{cmd}\"".format(term=terminal, cmd=cmd)
             terminal_settings = {
                 "startupinfo": subprocess.STARTUPINFO(),
                 "shell": True,
@@ -122,9 +129,13 @@ class Terminal():
             # Explicitly use /bin/bash on Unix. On OSX a login shell is used,
             # since the users expected env vars won't be setup otherwise.
 
-            shell_cmd = "{}; {}".format(
-                shell_cmd,
-                "sleep infinity" if settings.get("keep_terminal_open") else "echo && echo Press ENTER to continue && read && exit"
+            cmd = "{cmd}; {exit}".format(
+                cmd=cmd,
+                exit={
+                    "prompt": "echo && echo Press ENTER to continue && read && exit",
+                    "manual": "sleep infinity",
+                    "auto": "exit",
+                }[self.exit_method]
             )
 
             terminal = "xterm"
@@ -138,7 +149,7 @@ class Terminal():
                 "/usr/bin/env",
                 "bash -l" if sublime.platform() == "osx" else "bash",
                 "-c",
-                "{term} -e \"{cmd}; read\"".format(term=terminal, cmd=shell_cmd)
+                "{term} -e \"{cmd}; read\"".format(term=terminal, cmd=cmd)
             ]
             terminal_settings = {
                 "preexec_fn": os.setsid,
@@ -205,7 +216,7 @@ class AsyncTerminalProcess():
     thread).
     """
 
-    def __init__(self, cmd, env, listener, path="", tee=True):
+    def __init__(self, cmd, env, listener, exit_method, path="", tee=True):
 
         self.listener = listener
         self.killed = False
@@ -218,7 +229,13 @@ class AsyncTerminalProcess():
             # or tuck it at the front: "$PATH;C:\\new\\path", "C:\\new\\path;$PATH"
             os.environ["PATH"] = os.path.expandvars(path)
 
-        self.terminal = Terminal(env, encoding=self.listener.encoding, tee=tee, cache_path=CACHE_PATH)
+        self.terminal = Terminal(
+            env,
+            encoding=self.listener.encoding,
+            tee=tee,
+            exit_method=exit_method,
+            cache_path=CACHE_PATH
+        )
         self.terminal.run(cmd)
 
         if path:
@@ -272,7 +289,8 @@ class TerminalExecCommand(Default.exec.ExecCommand):
             word_wrap=True,
             syntax="Packages/Text/Plain text.tmLanguage",
             show_panel_on_build=False,
-            prompt=False,
+            input_prompt=False,
+            terminal_exit=None,
             tee=True,
             # Catches "path" and "shell"
             **kwargs):
@@ -319,10 +337,10 @@ class TerminalExecCommand(Default.exec.ExecCommand):
         self.output_view.settings().set("gutter", False)
         self.output_view.settings().set("scroll_past_end", False)
 
-        settings = sublime.load_settings("BuildSystemTerminal.sublime-settings")
+        self.settings = sublime.load_settings("BuildSystemTerminal.sublime-settings")
         self.output_view.assign_syntax(
             "Packages/BuildSystemTerminal/Panel.sublime-syntax"
-            if settings.get("panel_highlighting") else syntax
+            if self.settings.get("panel_highlighting") else syntax
         )
 
         # Call create_output_panel a second time after assigning the above
@@ -337,7 +355,7 @@ class TerminalExecCommand(Default.exec.ExecCommand):
             print("Running {}".format(cmd_string(cmd) if cmd else shell_cmd))
             sublime.status_message("Building")
 
-        if show_panel_on_build or settings.get("show_panel_on_build"):
+        if show_panel_on_build or self.settings.get("show_panel_on_build"):
             self.window.run_command("show_panel", {"panel": "output.exec"})
 
         self.hide_phantoms()
@@ -365,21 +383,26 @@ class TerminalExecCommand(Default.exec.ExecCommand):
         else:
             self.debug_text += "[path: " + str(os.environ["PATH"]) + "]"
 
-        if prompt:
+        exit_method = terminal_exit
+        if not exit_method:
+            exit_method = self.settings.get("terminal_exit")
+
+        if input_prompt:
             self.window.show_input_panel(
                 "$",
                 cmd_string(cmd) if cmd else shell_cmd,
-                lambda cmd: self._start_process(cmd, merged_env, tee, **kwargs),
+                lambda cmd: self._start_process(cmd, merged_env, exit_method, tee, **kwargs),
                 None,
                 None
             )
         else:
-            self._start_process(cmd_string(cmd) if cmd else shell_cmd, merged_env, tee, **kwargs)
+            self._start_process(cmd_string(cmd) if cmd else shell_cmd, merged_env, exit_method, tee, **kwargs)
 
-    def _start_process(self, cmd, env, tee, **kwargs):
+    def _start_process(self, cmd, env, exit_method, tee, **kwargs):
+
         try:
             # Forward kwargs to AsyncTerminalProcess
-            self.proc = AsyncTerminalProcess(cmd, env, self, tee=tee, **kwargs)
+            self.proc = AsyncTerminalProcess(cmd, env, self, exit_method, tee=tee, **kwargs)
 
             with self.text_queue_lock:
                 self.text_queue_proc = self.proc

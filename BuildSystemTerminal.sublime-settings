@@ -1,13 +1,27 @@
 {
+    // Show the Build Results panel when the build system starts
     "show_panel_on_build": false,
+
+    // Automatically close the Build Results panel if no errors occured
     "hide_panel_without_errors": true,
+
+    // Use panel syntax highlighting using the default color scheme
     "panel_highlighting": true,
-    "keep_terminal_open": false,
+
+    // Method to exit the terminal at the end of the execution:
+    // "prompt": Wait for enter to be pressed
+    // "manual": The terminal remains open until the window is closed manually
+    // "auto": Close terminal immediately after the build has finished
+    "terminal_exit": "prompt",
+
+    // Paths to the `tee` executable on every platform
     "tee_path": {
         "linux": "tee",
         "osx": "tee",
         "windows": "$packages/BuildSystemTerminal/tee.exe"
     }
+
+    // Number of rows and columns displayed in the terminal
     // "terminal_geometry": {
     //     "columns": 80,
     //     "lines": 20
