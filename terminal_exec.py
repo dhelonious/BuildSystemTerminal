@@ -4,6 +4,7 @@
 import collections
 import os
 import shutil
+import shlex
 import subprocess
 import threading
 import time
@@ -34,14 +35,7 @@ def cmd_string(cmd):
     if isinstance(cmd, str):
         return cmd
 
-    shell_cmd = []
-    for part in cmd:
-        if " " in part:
-            shell_cmd.append("\"{}\"".format(part))
-        else:
-            shell_cmd.append(part)
-
-    return " ".join(shell_cmd)
+    return " ".join([shlex.quote(c) for c in cmd])
 
 def plugin_loaded():
     global CACHE_PATH
